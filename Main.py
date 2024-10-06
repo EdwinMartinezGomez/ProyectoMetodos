@@ -1,0 +1,4 @@
+import FixedPoint 
+
+FixedPoint.inputFixedPoint()
+   

@@ -1,50 +1,31 @@
 import math
 
+functionMath=""
+funtionTransformed=""
+def f(x):
+    return eval(functionMath, {"x": x, "math": math})
 
-def punto_fijo(g, x0, tolerancia, iteraciones_max, ):
-    """
-    Encuentra la raíz de la ecuación f(x) = 0 utilizando el método del punto fijo.
-    
-    Args:
-        g: Función de iteración g(x).
-        x0: Aproximación inicial.
-        tolerancia: Tolerancia para la convergencia.
-        iteraciones_max: Número máximo de iteraciones permitidas.
-        
-    Returns:
-        Aproximación de la raíz de la ecuación.
-    """
-    iteracion = 0
-    while iteracion < iteraciones_max:
-        x1 = g(x0)
-        if abs(x1 - x0) < tolerancia:
-            return x1, iteracion
-        x0 = x1
-        iteracion += 1
-    
-    ##print("El método no convergió después de", iteraciones_max, "iteraciones.")
-    return None, iteracion
-
-# Ejemplo de función de iteración g(x) = sqrt(10 / x)
 def g(x):
-    return math.sqrt(100 / x)
+    return eval(funtionTransformed, {"x": x, "math": math})
 
-# Parámetros
-x0 = 2.0  # Aproximación inicial
-tolerancia = 1e-6  # Tolerancia para la convergencia
-iteraciones_max = 10000  # Número máximo de iteraciones
+def fixedPoint(functionMath, funtionTransformed, p0, tol, n, i):
+    while i<=n:
+        p=g(p0)
+        if abs(p-p0)<tol:
+            print("El punto fijo es ",p," despues de ",i," iteraciones")
+            break
+        i=i+1
+        p0=p
+        print("iteracion ",i-1,": ",p0)
+    if i>=n:
+        print("diverge")
 
-# Llamada al método del punto fijo
-raiz, iteracion = punto_fijo(g, x0, tolerancia, iteraciones_max)
-if raiz is  None:
-    raiz="error"
-    def result ():
-        data = {'Root' : raiz, 'Iterations' : iteracion }
-        return data
-    print("La raíz aproximada es:", raiz)
-else:
-    def result ():
-        data = {'Root' : raiz, 'Iterations' : iteracion }
-        return data
-
+def inputFixedPoint():
+    functionMath=input("Ingrese la funcion f(x) ")
+    funtionTransformed=input("Ingrese la funcion g(x) ")
+    p0=float(input("Ingrese el valor del punto inicial "))
+    tol=float(0.0001)
+    n=int(1000)
+    i=1
+    fixedPoint(functionMath, funtionTransformed, p0, tol, n, i)
 

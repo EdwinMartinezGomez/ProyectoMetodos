@@ -3,3 +3,4 @@
 
 # Ignorar el directorio __pycache__ en src\co\edu\uptc\model
 src/co/edu/uptc/model/__pycache__/
+src/co/edu/uptc/view/__pycache__/

@@ -28,4 +28,3 @@ def inputFixedPoint():
     n=int(1000)
     i=1
     fixedPoint(functionMath, funtionTransformed, p0, tol, n, i)
-

@@ -1,8 +1,9 @@
+import re
+
 import src.co.edu.uptc.model.FixedPoint as FixedPoint
 #import src.co.edu.uptc.model.Bisection as Bisection
 #import src.co.edu.uptc.model.NewtonRaphson as NewtonRaphson
 #import src.co.edu.uptc.model.Secant as Secant
-import re
 
 function_mapping = {
     'sin': 'np.sin',

@@ -63,7 +63,7 @@ def menu():
             print(Bisection.bisection(functionMath, a, b, tol, n))
 
         elif choice == '3':
-            functionMath = input("Ingrese la función matemática (por ejemplo, 'sin(x)'): ")
+            functionMath = input("Ingrese la función matemática (por ejemplo, 'x**2-4'): ")
             functionMath = transform_function(functionMath)
             p0 = float(input("Ingrese el valor inicial p0: "))
             tol = float(input("Ingrese la tolerancia: "))
@@ -75,7 +75,7 @@ def menu():
             print(f"La raíz aproximada es: {raiz}")
 
         elif choice == '4':
-            functionMath = input("Ingrese la función matemática (por ejemplo, 'sin(x)'): ")
+            functionMath = input("Ingrese la función matemática (por ejemplo, 'x**3-2*x-5'): ")
             functionMath = transform_function(functionMath)
             p0 = float(input("Ingrese el valor inicial p0: "))
             p1 = float(input("Ingrese el valor inicial p1: "))

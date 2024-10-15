@@ -5,6 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ce497e74-e1e1-44fc-aa72-145cd0cf3f20" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/co/edu/uptc/model/Bisection.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/co/edu/uptc/view/view.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/co/edu/uptc/view/view.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -94,7 +96,7 @@
       <updated>1728253368020</updated>
       <workItem from="1728253369075" duration="3919000" />
       <workItem from="1728605112504" duration="772000" />
-      <workItem from="1728919175352" duration="3836000" />
+      <workItem from="1728919175352" duration="8072000" />
     </task>
     <servers />
   </component>

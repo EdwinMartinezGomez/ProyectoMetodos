@@ -6,6 +6,8 @@ import src.co.edu.uptc.model.FixedPoint as FixedPoint
 import src.co.edu.uptc.model.Bisection as Bisection
 import src.co.edu.uptc.model.Secant as Secant
 import src.co.edu.uptc.model.Broyden as Broyden
+from src.co.edu.uptc.model.Raphson import Raphson
+
 
 function_mapping = {
     'sin': 'np.sin',
@@ -62,14 +64,15 @@ def menu():
 
         elif choice == '3':
             functionMath = input("Ingrese la función matemática (por ejemplo, 'sin(x)'): ")
-            derivativeMath = input("Ingrese la derivada de la función matemática (por ejemplo, 'cos(x)'): ")
             functionMath = transform_function(functionMath)
-            derivativeMath = transform_function(derivativeMath)
             p0 = float(input("Ingrese el valor inicial p0: "))
             tol = float(input("Ingrese la tolerancia: "))
             n = int(input("Ingrese el número máximo de iteraciones: "))
-            # Uncomment this line if you implement Newton-Raphson
-            # print(NewtonRaphson.newtonRaphson(functionMath, derivativeMath, p0, tol, n))
+            
+            # Crear una instancia de la clase Raphson
+            raphson_instance = Raphson(functionMath, p0, tol, n)
+            raiz = raphson_instance.calcular_raiz()  # Llamar al método para calcular la raíz
+            print(f"La raíz aproximada es: {raiz}")
 
         elif choice == '4':
             functionMath = input("Ingrese la función matemática (por ejemplo, 'sin(x)'): ")

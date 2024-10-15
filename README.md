@@ -16,13 +16,13 @@ Aplicación en Python que implementa métodos numéricos clásicos para la resol
 #### Métodos implementados:
 - Método de Bisección
 
-### Nombre apellido
+### Brayan David Lopez
 #### Métodos implementados:
-- Método implementado
+- Método Raphson
 
-### Nombre apellido
+### Juan Esteban Vargas
 #### Métodos implementados:
-- Método implementado
+- Método Secante
 
 ## Instrucciones
 

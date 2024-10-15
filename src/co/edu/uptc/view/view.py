@@ -1,10 +1,7 @@
-# src/co/edu/uptc/view/view.py
 import re
 import src.co.edu.uptc.model.FixedPoint as FixedPoint
 import src.co.edu.uptc.model.Bisection as Bisection
-
-# import src.co.edu.uptc.model.NewtonRaphson as NewtonRaphson
-# import src.co.edu.uptc.model.Secant as Secant
+import src.co.edu.uptc.model.Secant as Secant
 
 function_mapping = {
     'sin': 'np.sin',
@@ -25,12 +22,10 @@ function_mapping = {
     'sqrt': 'np.sqrt'
 }
 
-
 def transform_function(user_input):
     for key, value in function_mapping.items():
         user_input = re.sub(r'\b' + key + r'\b', value, user_input)
     return user_input
-
 
 def menu():
     while True:
@@ -68,7 +63,8 @@ def menu():
             p0 = float(input("Ingrese el valor inicial p0: "))
             tol = float(input("Ingrese la tolerancia: "))
             n = int(input("Ingrese el número máximo de iteraciones: "))
-        #          NewtonRaphson.newtonRaphson(functionMath, derivativeMath, p0, tol, n)
+            # Uncomment this line if you implement Newton-Raphson
+            # print(NewtonRaphson.newtonRaphson(functionMath, derivativeMath, p0, tol, n))
 
         elif choice == '4':
             functionMath = input("Ingrese la función matemática (por ejemplo, 'sin(x)'): ")
@@ -77,7 +73,7 @@ def menu():
             p1 = float(input("Ingrese el valor inicial p1: "))
             tol = float(input("Ingrese la tolerancia: "))
             n = int(input("Ingrese el número máximo de iteraciones: "))
-        #         Secant.secant(functionMath, p0, p1, tol, n)
+            print(Secant.secantMethod(functionMath, p0, p1, tol, n))
 
         elif choice == '5':
             print("Saliendo del programa.")
@@ -85,3 +81,6 @@ def menu():
 
         else:
             print("Opción no válida. Por favor, intente de nuevo.")
+
+if __name__ == "__main__":
+    menu()

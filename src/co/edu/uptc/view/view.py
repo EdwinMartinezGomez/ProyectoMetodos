@@ -1,7 +1,11 @@
 import re
+
+import numpy as np
+
 import src.co.edu.uptc.model.FixedPoint as FixedPoint
 import src.co.edu.uptc.model.Bisection as Bisection
 import src.co.edu.uptc.model.Secant as Secant
+import src.co.edu.uptc.model.Broyden as Broyden
 
 function_mapping = {
     'sin': 'np.sin',
@@ -34,9 +38,10 @@ def menu():
         print("2. Bisección")
         print("3. Newton-Raphson")
         print("4. Secante")
-        print("5. Salir")
+        print("5. Broyden")
+        print("6. Salir")
 
-        choice = input("Ingrese su elección (1-5): ")
+        choice = input("Ingrese su elección (1-6): ")
 
         if choice == '1':
             functionMath = input("Ingrese la función matemática (por ejemplo, 'sin(x)'): ")
@@ -76,6 +81,11 @@ def menu():
             print(Secant.secantMethod(functionMath, p0, p1, tol, n))
 
         elif choice == '5':
+            print("Ingrese las ecuaciones del sistema (ejemplo para el sistema eléctrico):")
+            initial_guess = np.array([float(x) for x in input("Ingrese las condiciones iniciales separadas por comas (ejemplo: 1.0, 1.0, 1.0): ").split(",")])
+            print(Broyden.broyden_method(Broyden.sistema_electrico, initial_guess))
+
+        elif choice == '6':
             print("Saliendo del programa.")
             break
 

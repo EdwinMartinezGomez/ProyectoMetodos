@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app  # Sincroniza el código fuente con el contenedor
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  db:
+    image: postgres:latest  # Cambia esto si usas otro motor de base de datos
+    environment:
+      POSTGRES_DB: nombre_de_tu_db
+      POSTGRES_USER: usuario
+      POSTGRES_PASSWORD: contraseña
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

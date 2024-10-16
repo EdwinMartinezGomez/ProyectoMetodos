@@ -3,6 +3,7 @@ import math
 
 def f(x, functionMath):
     try:
+        # Asegúrate de que functionMath es una cadena
         return eval(functionMath, {"x": x, "math": math, "np": np})
     except Exception as e:
         print(f"Error evaluating functionMath: {e}")

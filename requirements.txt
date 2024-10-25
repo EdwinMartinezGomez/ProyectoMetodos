@@ -13,13 +13,13 @@ Jinja2==3.1.4
 kiwisolver==1.4.7
 MarkupSafe==2.1.5
 matplotlib==3.9.2
-numpy==2.1.2
+numpy==1.23.5  # Actualizado a una versión compatible con contourpy y matplotlib
 packaging==24.1
 pillow==10.4.0
 pyparsing==3.1.4
 python-dateutil==2.9.0.post0
 requests==2.32.3
-scipy==1.14.1
+scipy==1.10.1  # Actualizado a una versión compatible con numpy 1.23.5
 six==1.16.0
 urllib3==2.2.2
 Werkzeug==3.0.4

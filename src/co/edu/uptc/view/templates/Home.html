@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Métodos Numéricos</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+    <link rel="stylesheet" href="../static/css/Home.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Métodos Numéricos</h1>
+        <div class="content-wrapper">
+            <div class="input-section">
+                <form id="metodoForm">
+                    <label for="metodo">Método Numérico:</label>
+                    <select id="metodo" required>
+                        <option value="">Seleccione un método</option>
+                        <option value="puntoFijo">Punto Fijo</option>
+                        <option value="biseccion">Bisección</option>
+                        <option value="newtonRaphson">Newton-Raphson</option>
+                        <option value="secante">Secante</option>
+                    </select>
+
+                    <label for="funcion">Función f(x):</label>
+                    <input type="text" id="funcion" placeholder="Ej: x^2 - 2" required>
+
+                    <div id="camposAdicionales"></div>
+
+                    <button type="submit">Calcular</button>
+                    <div class="teclado">
+                        <button type="button" data-func="np.sin">sin</button>
+                        <button type="button" data-func="np.cos">cos</button>
+                        <button type="button" data-func="np.tan">tan</button>
+                        <button type="button" data-func="np.log">log</button>
+                        <button type="button" data-func="np.exp">exp</button>
+                        <button type="button" data-func="np.sqrt">sqrt</button>
+                        <button type="button" data-func="^">^</button>
+                        <button type="button" data-func="(">(</button>
+                        <button type="button" data-func=")">)</button>
+                        <button type="button" data-func="+">+</button>
+                        <button type="button" data-func="-">-</button>
+                        <button type="button" data-func=""></button>
+                        <button type="button" data-func="/">/</button>
+                        <button type="button" data-func="x">x</button>
+                    </div>
+                </form>
+                <div id="error" class="error"></div>
+            </div>
+            <div class="graph-section">
+                <canvas id="myChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <script src="../static/js/Home.js"></script>
+</body>
+</html>

@@ -2,14 +2,15 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 from model.FixedPoint import fixedPoint
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return jsonify({"message": "Hola, Mundo!"})
+    return render_template('Home.html')
+    #return jsonify({"message": "Hola, Mundo!"})
 
 @app.route('/puntofijo', methods=['GET'])
 def fixed_point():

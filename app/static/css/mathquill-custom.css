@@ -1,0 +1,29 @@
+#math-input {
+    min-height: 38px !important;
+    height: auto !important;
+    padding: 6px 12px !important;
+    font-size: 1em;
+}
+
+.mq-editable-field {
+    width: 100% !important;
+    border: 1px solid #ced4da !important;
+    border-radius: 0.25rem !important;
+    min-height: 38px !important;
+    padding: 6px 12px !important;
+}
+
+.mq-editable-field.mq-focused {
+    border-color: #86b7fe !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+}
+
+.mq-editable-field,
+.form-control {
+    background-color: #E7E7E7;
+    border: 1px solid #ced4da;
+}
+
+.mq-math-mode {
+    font-size: 1.15em !important;
+}

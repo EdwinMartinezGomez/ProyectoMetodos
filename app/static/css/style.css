@@ -1,0 +1,215 @@
+/* General Styles */
+* {
+    font-family: sans-serif;
+    font-size: 18px;
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #E7E7E7;
+    overflow-x: hidden;
+}
+
+/* Layout */
+.main-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Calculator Side */
+.calculator-side {
+    overflow-y: auto;
+    padding-right: 20px;
+    height: 100%;
+}
+
+.calculator-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* Graph Side */
+.graph-side {
+    position: sticky;
+    top: 20px;
+    height: calc(100vh - 40px);
+    width: 100%; /* Ocupa todo el ancho del contenedor */
+    overflow: hidden;
+}
+.plot-container {
+    height: 100%;
+    width: 100%;
+    background: #f9f9f9; /* Fondo claro */
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#plotHtmlContainer {
+    height: 100%;
+    width: 100%;
+}
+#find-interval-btn {
+    white-space: nowrap;
+    font-size: 0.9rem; /* Ajusta el tamaño de la fuente según sea necesario */
+    padding: 8px 0;    /* Ajusta el espaciado interno según prefieras */
+}
+
+
+/* Keyboard Styles */
+.keyboard-container {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+}
+
+.keyboard {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 600px;
+}
+
+.row-keyboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(45px, 1fr));
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+
+.calc-btn {
+    min-width: 45px;
+    height: 45px;
+    padding: 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background-color: white;
+    color: #333;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1em;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.calc-btn:hover {
+    background-color: #e9ecef;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+.del-btn {
+    background-color: #dc3545;
+    color: white;
+    grid-column: span 2;
+}
+
+.del-btn:hover {
+    background-color: #c82333;
+}
+
+/* Form and Input Styles */
+.mq-editable-field {
+    width: 100% !important;
+    border: 1px solid #ced4da !important;
+    border-radius: 0.25rem !important;
+    min-height: 38px !important;
+    padding: 6px 12px !important;
+    background-color: #E7E7E7;
+}
+
+.mq-editable-field.mq-focused {
+    border-color: #86b7fe !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+}
+
+.mq-math-mode {
+    font-size: 1.15em !important;
+}
+
+#error {
+    overflow: auto;
+    /* Permite desplazamiento si el contenido desborda */
+    word-wrap: break-word;
+    /* Permite que el texto largo se divida en múltiples líneas */
+    max-height: 100px;
+    /* Limita la altura del cuadro de error */
+    display: none;
+    /* Asegura que el cuadro de error esté oculto inicialmente */
+}
+
+#resultsDiv {
+    overflow: auto;
+    max-height: 300px;
+    /* Controla la altura máxima de los resultados */
+    word-wrap: break-word;
+}
+
+.result-card {
+    margin: 0;
+    border: none;
+    box-shadow: none;
+}
+
+.result-card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+@media (max-width: 768px) {
+    .main-container {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+    }
+
+    .graph-side {
+        position: static;
+        height: 400px; /* Define una altura específica para pantallas pequeñas */
+        width: 100%; /* Asegura que ocupe todo el ancho en pantallas pequeñas */
+    }
+
+    #plotHtmlContainer {
+        height: 100%;
+        width: 100%;
+    }
+}
+
+
+
+@media (max-width: 600px) {
+    .calc-btn {
+        font-size: 0.9em;
+    }
+
+    .row-keyboard {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 400px) {
+    .calc-btn {
+        font-size: 0.85em;
+        height: 40px;
+        min-width: 40px;
+    }
+
+    .row-keyboard {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

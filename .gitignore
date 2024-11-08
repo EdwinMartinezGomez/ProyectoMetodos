@@ -1,6 +1,8 @@
-# Ignorar el directorio de configuración de Visual Studio Code
-.vscode/
-
-# Ignorar el directorio __pycache__ en src\co\edu\uptc\model
-src/co/edu/uptc/model/__pycache__/
-src/co/edu/uptc/view/__pycache__/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+.env
+*.log

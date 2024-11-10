@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify, render_template
+from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 import numpy as np
 import plotly
 import plotly.graph_objs as go
 import json
-from scipy import optimize
 import sympy as sp
 import re
 import logging
@@ -18,62 +18,110 @@ logging.basicConfig(level=logging.INFO)
 def index():
     return render_template('calculator.html')
 
-def preprocess_equation(equation):
-    """Preprocess equation to handle LaTeX-like notation and common input formats."""
-    eq = equation.strip().replace(' ', '')
-    
-    # Reemplazar notación de fracción LaTeX por división estándar
-    eq = re.sub(r'\\frac{([^{}]+)}{([^{}]+)}', r'(\1)/(\2)', eq)
-    
-    # Manejar la notación e^{...} y convertirla a exp(...)
-    eq = re.sub(r'e\^\{([^}]+)\}', r'exp(\1)', eq)
-    
-    # Reemplazar ^ por ** para exponentes
-    eq = re.sub(r'\^', '**', eq)
-    
-    # Añadir * para multiplicaciones implícitas donde sea necesario
-    eq = re.sub(r'(\d)([a-zA-Z(])', r'\1*\2', eq)
-    eq = re.sub(r'([a-zA-Z)])(\d)', r'\1*\2', eq)
-    eq = re.sub(r'\)([a-zA-Z(])', r')*\1', eq)
-    
-    # Reemplazar 'e' por 'E' cuando 'e' se usa como constante
-    eq = re.sub(r'\be\b', 'E', eq)
-    
-    # Eliminar comandos de LaTeX como \left y \right si aún quedan
-    eq = re.sub(r'\\left|\\right', '', eq)
-    
+def replace_fractions(eq):
+    """
+    Reemplaza todas las instancias de \frac{a}{b} por (a)/(b).
+    Maneja múltiples y fracciones anidadas.
+    """
+    while '\\frac' in eq:
+        frac_start = eq.find('\\frac')
+        first_brace = eq.find('{', frac_start)
+        if first_brace == -1:
+            logger.error("Fracción malformada: No se encontró '{' después de '\\frac'.")
+            raise ValueError("Fracción malformada: No se encontró '{' después de '\\frac'.")
+
+        # Función para extraer el contenido dentro de las llaves
+        def extract_brace_content(s, start):
+            if s[start] != '{':
+                logger.error(f"Se esperaba '{{' en la posición {start}.")
+                return None, start
+            stack = 1
+            content = []
+            for i in range(start + 1, len(s)):
+                if s[i] == '{':
+                    stack += 1
+                    content.append(s[i])
+                elif s[i] == '}':
+                    stack -= 1
+                    if stack == 0:
+                        return ''.join(content), i
+                    else:
+                        content.append(s[i])
+                else:
+                    content.append(s[i])
+            logger.error("Fracción malformada: No se encontró '}' correspondiente.")
+            return None, start  # No matching closing brace
+
+        # Extraer el numerador
+        numerator, num_end = extract_brace_content(eq, first_brace)
+        if numerator is None:
+            raise ValueError("Fracción malformada: No se pudo extraer el numerador.")
+
+        # Encontrar la primera '{' después del numerador
+        denominator_start = eq.find('{', num_end)
+        if denominator_start == -1:
+            raise ValueError("Fracción malformada: Faltante '{' para el denominador.")
+
+        # Extraer el denominador
+        denominator, den_end = extract_brace_content(eq, denominator_start)
+        if denominator is None:
+            raise ValueError("Fracción malformada: No se pudo extraer el denominador.")
+
+        # Reemplazar \frac{numerador}{denominador} con (numerador)/(denominador)
+        frac_full = eq[frac_start:den_end + 1]
+        frac_replacement = f'({numerator})/({denominator})'
+        eq = eq.replace(frac_full, frac_replacement, 1)
+        logger.info(f"Reemplazado '{frac_full}' por '{frac_replacement}'.")
+
     return eq
 
-def parse_equations(equations, variables):
+def preprocess_equation(equation):
     """
-    Convierte una lista de ecuaciones en formato de texto a una matriz de coeficientes y un vector b.
+    Preprocesa la ecuación para manejar notación LaTeX, inserción de '*', reemplazo de '^' por '**', y reemplazo de \frac.
     """
-    A = []
-    b = []
-    for eq in equations:
-        # Suponiendo que las ecuaciones están en la forma "ax + by + cz = d"
-        lhs, rhs = eq.split('=')
-        rhs = float(rhs.strip())
-        b.append(rhs)
-        
-        coeffs = []
-        for var in variables:
-            # Buscar el coeficiente de cada variable usando expresiones regulares
-            pattern = r'([+-]?\s*\d*\.?\d*)\s*' + re.escape(var)
-            match = re.search(pattern, lhs)
-            if match:
-                coeff_str = match.group(1).replace(' ', '')
-                if coeff_str in ['', '+']:
-                    coeff = 1.0
-                elif coeff_str == '-':
-                    coeff = -1.0
-                else:
-                    coeff = float(coeff_str)
-            else:
-                coeff = 0.0
-            coeffs.append(coeff)
-        A.append(coeffs)
-    return A, b
+    eq = equation.strip()
+    logger.info(f"Ecuación original: {eq}")
+
+    # 1. Reemplazar \frac{a}{b} por (a)/(b)
+    eq = replace_fractions(eq)
+    logger.info(f"Ecuación después de reemplazar fracciones: {eq}")
+
+    # 2. Reemplazar \sqrt{...} por sqrt(...)
+    eq = re.sub(r'\\sqrt\{([^{}]+)\}', r'sqrt(\1)', eq)
+    logger.info(f"Ecuación después de reemplazar '\\sqrt{{...}}': {eq}")
+
+    # 3. Reemplazar otros comandos de LaTeX
+    eq = re.sub(r'\\left|\\right', '', eq)
+    eq = re.sub(r'\\cdot|\\times', '*', eq)
+    eq = re.sub(r'\\div', '/', eq)
+    eq = re.sub(r'\\pi', 'pi', eq)
+    eq = re.sub(r'\\ln', 'log', eq)
+    eq = re.sub(r'\\log', 'log10', eq)
+    eq = re.sub(r'\\exp\{([^{}]+)\}', r'exp(\1)', eq)
+    eq = re.sub(r'\\sin', 'sin', eq)
+    eq = re.sub(r'\\cos', 'cos', eq)
+    eq = re.sub(r'\\tan', 'tan', eq)
+    logger.info(f"Ecuación después de reemplazar otros comandos de LaTeX: {eq}")
+
+    # 4. Reemplazar '{' y '}' por '(' y ')'
+    eq = eq.replace('{', '(').replace('}', ')')
+    logger.info(f"Ecuación después de reemplazar '{{}}' por '()': {eq}")
+
+    # 5. Insertar explícitamente '*' entre dígitos y letras o '(' con manejo de espacios
+    eq = re.sub(r'(\d)\s*([a-zA-Z(])', r'\1*\2', eq)
+    eq = re.sub(r'(\))\s*([a-zA-Z(])', r'\1*\2', eq)
+    logger.info(f"Ecuación después de insertar '*': {eq}")
+
+    # 6. Reemplazar '^' por '**' para exponentiación
+    eq = eq.replace('^', '**')
+    logger.info(f"Ecuación después de reemplazar '^' por '**': {eq}")
+
+    # Validar paréntesis balanceados
+    if eq.count('(') != eq.count(')'):
+        raise ValueError("Paréntesis desbalanceados en la ecuación.")
+
+    logger.info(f"Ecuación preprocesada: {eq}")
+    return eq
 
 def parse_equation(equation_str):
     """
@@ -85,13 +133,18 @@ def parse_equation(equation_str):
 
         # Eliminar 'Math.'
         equation_str = equation_str.replace('Math.', '')
+        logger.info(f"Ecuación sin 'Math.': {equation_str}")  # Log
 
         processed_eq = preprocess_equation(equation_str)
+        logger.info(f"Ecuación preprocesada: {processed_eq}")  # Log
+
         x = sp.Symbol('x')
 
         # Funciones y constantes permitidas usando SymPy
         allowed_funcs = {
-            'E': sp.E,             # Constante matemática e
+            'E': sp.E,
+            'e': sp.E,
+            'ℯ': sp.E,
             'exp': sp.exp,
             'sin': sp.sin,
             'cos': sp.cos,
@@ -102,13 +155,14 @@ def parse_equation(equation_str):
             'pi': sp.pi
         }
 
-        expr = sp.sympify(processed_eq, locals={'x': x, **allowed_funcs})
+        transformations = (standard_transformations + (implicit_multiplication_application,))
+
+        expr = parse_expr(processed_eq, local_dict={'x': x, **allowed_funcs}, transformations=transformations)
         f = sp.lambdify(x, expr, modules=['numpy'])
 
         return f
-    except sp.SympifyError as e:
-        raise ValueError(f"La ecuación ingresada no es válida: {str(e)}")
     except Exception as e:
+        logger.error(f"Error al procesar la ecuación: {str(e)}")
         raise ValueError(f"Error al procesar la ecuación: {str(e)}")
 
 def parse_derivative_equation(equation_str):
@@ -120,11 +174,15 @@ def parse_derivative_equation(equation_str):
             raise ValueError("La ecuación no puede estar vacía.")
 
         processed_eq = preprocess_equation(equation_str)
+        logger.info(f"Ecuación preprocesada para derivada: {processed_eq}")
+
         x = sp.Symbol('x')
 
         # Funciones y constantes permitidas usando SymPy
         allowed_funcs = {
-            'E': sp.E,             # Constante matemática e
+            'E': sp.E,
+            'e': sp.E,
+            'ℯ': sp.E,
             'exp': sp.exp,
             'sin': sp.sin,
             'cos': sp.cos,
@@ -135,7 +193,9 @@ def parse_derivative_equation(equation_str):
             'pi': sp.pi
         }
 
-        expr = sp.sympify(processed_eq, locals={'x': x, **allowed_funcs})
+        transformations = (standard_transformations + (implicit_multiplication_application,))
+
+        expr = parse_expr(processed_eq, local_dict={'x': x, **allowed_funcs}, transformations=transformations)
         derivative_expr = sp.diff(expr, x)
         fprime = sp.lambdify(x, derivative_expr, modules=['numpy'])
 
@@ -150,20 +210,28 @@ def parse_derivative_equation(equation_str):
                 raise ValueError(f"La derivada de la función no es válida en x={test_x}: {str(e)}")
 
         return fprime
-    except sp.SympifyError as e:
-        raise ValueError(f"La derivada de la ecuación ingresada no es válida: {str(e)}")
     except Exception as e:
+        logger.error(f"Error al procesar la derivada de la ecuación: {str(e)}")
         raise ValueError(f"Error al procesar la derivada de la ecuación: {str(e)}")
-def parse_g_function(g_str):
+
+def parse_g_function(g_func_str):
+    """
+    Analiza y valida la función g(x) proporcionada por el usuario.
+    """
     try:
-        if not g_str:
+        if not g_func_str:
             raise ValueError("La función g(x) no puede estar vacía.")
-        
-        processed_g = preprocess_equation(g_str)
+
+        processed_g_func = preprocess_equation(g_func_str)
+        logger.info(f"Función g(x) preprocesada: {processed_g_func}")
+
         x = sp.Symbol('x')
-        
+
+        # Funciones y constantes permitidas usando SymPy
         allowed_funcs = {
             'E': sp.E,
+            'e': sp.E,
+            'ℯ': sp.E,
             'exp': sp.exp,
             'sin': sp.sin,
             'cos': sp.cos,
@@ -173,23 +241,15 @@ def parse_g_function(g_str):
             'abs': sp.Abs,
             'pi': sp.pi
         }
-        
-        expr = sp.sympify(processed_g, locals={'x': x, **allowed_funcs})
+
+        transformations = (standard_transformations + (implicit_multiplication_application,))
+
+        expr = parse_expr(processed_g_func, local_dict={'x': x, **allowed_funcs}, transformations=transformations)
         g = sp.lambdify(x, expr, modules=['numpy'])
-        
-        # Prueba de evaluación
-        for test_x in [-1.0, 0.5, 1.0, 1.5, 2.0]:  # Añadido más puntos de prueba
-            try:
-                result = g(test_x)
-                if not np.isfinite(result):
-                    raise ValueError(f"La función g(x) no es finita en x={test_x}.")
-            except Exception as e:
-                raise ValueError(f"La función g(x) no es válida en x={test_x}: {str(e)}")
-        
+
         return g
-    except sp.SympifyError as e:
-        raise ValueError(f"La función g(x) ingresada no es válida: {str(e)}")
     except Exception as e:
+        logger.error(f"Error al procesar la función g(x): {str(e)}")
         raise ValueError(f"Error al procesar la función g(x): {str(e)}")
 
 def find_valid_interval(f, start=-10, end=10, num_points=1000):
@@ -206,6 +266,7 @@ def find_valid_interval(f, start=-10, end=10, num_points=1000):
     else:
         raise ValueError("No se encontró un intervalo válido donde la función cambie de signo.")
 
+# Métodos Numéricos (Bisección, Newton-Raphson, etc.)
 def bisection_method(f, a, b, max_iter, iteration_history, tol=1e-6):
     fa = f(a)
     fb = f(b)
@@ -218,11 +279,12 @@ def bisection_method(f, a, b, max_iter, iteration_history, tol=1e-6):
         fc = f(c)
         error = abs(b - a) / 2.0  # Calcula el error como la mitad del intervalo
         iteration_history.append({
-            'iteration': i,  # Añadido
-            'x': round(float(c), 6),  # Cambiado a 3
-            'fx': round(float(fc), 6),  # Cambiado a 3
-            'error': round(float(error), 6)  # Cambiado a 3
+            'iteration': i,
+            'x': round(float(c), 6),
+            'fx': round(float(fc), 6),
+            'error': round(float(error), 6)
         })
+        logger.info(f"Bisección Iteración {i}: x = {c}, f(x) = {fc}, error = {error}")
         if abs(fc) < tol or error < tol:
             converged = True
             break
@@ -234,6 +296,7 @@ def bisection_method(f, a, b, max_iter, iteration_history, tol=1e-6):
             fa = fc
 
     return c, converged, i
+
 def newton_raphson(f, fprime, x0, max_iter=100, tol=1e-6):
     iteration_history = []
     x_prev = x0
@@ -246,11 +309,12 @@ def newton_raphson(f, fprime, x0, max_iter=100, tol=1e-6):
             x_next = x_prev - fx / fpx
             error = abs(x_next - x_prev)
             iteration_history.append({
-                'iteration': i,  # Añadido
-                'x': round(float(x_next), 6),  # Cambiado a 3
-                'fx': round(float(fx), 6),  # Cambiado a 3
-                'error': round(float(error), 6)  # Cambiado a 3
+                'iteration': i,
+                'x': round(float(x_next), 6),
+                'fx': round(float(fx), 6),
+                'error': round(float(error), 6)
             })
+            logger.info(f"Newton-Raphson Iteración {i}: x = {x_next}, f(x) = {fx}, error = {error}")
             if error < tol:
                 return x_next, True, i, iteration_history
             x_prev = x_next
@@ -258,6 +322,31 @@ def newton_raphson(f, fprime, x0, max_iter=100, tol=1e-6):
             logger.error(f"Error en la iteración {i} del método Newton-Raphson: {str(e)}")
             return None, False, i, iteration_history
     return x_prev, False, max_iter, iteration_history
+
+def secant_method(f, x0, x1, max_iter, tol=1e-6):
+    iteration_history = []
+    for i in range(1, max_iter + 1):
+        try:
+            fx0 = f(x0)
+            fx1 = f(x1)
+            if fx1 - fx0 == 0:
+                raise ZeroDivisionError("División por cero en el método Secante.")
+            x2 = x1 - fx1 * (x1 - x0) / (fx1 - fx0)
+            error = abs(x2 - x1)
+            iteration_history.append({
+                'iteration': i,
+                'x': round(float(x2), 6),
+                'fx': round(float(f(x2)), 6),
+                'error': round(float(error), 6)
+            })
+            logger.info(f"Secante Iteración {i}: x = {x2}, f(x) = {f(x2)}, error = {error}")
+            if error < tol:
+                return x2, True, i, iteration_history
+            x0, x1 = x1, x2
+        except Exception as e:
+            logger.error(f"Error en la iteración {i} del método Secante: {str(e)}")
+            return None, False, i, iteration_history
+    return x1, False, max_iter, iteration_history
 
 def fixed_point_method(g, x0, max_iter, iteration_history, tol=1e-6):
     x_prev = x0
@@ -270,12 +359,12 @@ def fixed_point_method(g, x0, max_iter, iteration_history, tol=1e-6):
             if not np.isfinite(x_next):
                 raise ValueError(f"El método de Punto Fijo produjo un valor no finito en la iteración {i}.")
             iteration_history.append({
-                'iteration': i,  # Añadido
-                'x': round(float(x_next), 6),  # Cambiado a 3
-                'fx': round(float(fx), 6),  # Cambiado a 3
-                'error': round(float(error), 6)  # Cambiado a 3
+                'iteration': i,
+                'x': round(float(x_next), 6),
+                'fx': round(float(fx), 6),
+                'error': round(float(error), 6)
             })
-            logger.debug(f"Iteración {i}: x = {x_next}, f(x) = {fx}, error = {error}")
+            logger.info(f"Punto Fijo Iteración {i}: x = {x_next}, f(x) = {fx}, error = {error}")
             if error < tol:
                 converged = True
                 break
@@ -286,6 +375,7 @@ def fixed_point_method(g, x0, max_iter, iteration_history, tol=1e-6):
 
     return x_next, converged, i, iteration_history
 
+# Métodos para sistemas de ecuaciones
 def jacobi_method(A, b, x0, max_iter, tol=1e-6, iteration_history=None):
     n = len(A)
     x = np.array(x0, dtype=float)
@@ -309,30 +399,18 @@ def jacobi_method(A, b, x0, max_iter, tol=1e-6, iteration_history=None):
                 'x': [round(float(val), 6) for val in x_new],
                 'error': round(float(error), 6)
             })
-        
+        logger.info(f"Jacobi Iteración {i}: x = {x_new}, error = {error}")
+
         if error < tol:
             converged = True
             break
         x = x_new.copy()
-    
+
     return x.tolist(), converged, i
 
 def gauss_seidel_method(A, b, x0, max_iter, tol=1e-6, iteration_history=None):
     """
     Implementación del método de Gauss-Seidel para resolver sistemas de ecuaciones lineales A x = b.
-    
-    Parámetros:
-    - A: Matriz de coeficientes.
-    - b: Vector de términos independientes.
-    - x0: Vector de estimación inicial.
-    - max_iter: Número máximo de iteraciones.
-    - tol: Tolerancia para la convergencia.
-    - iteration_history: Lista para almacenar el historial de iteraciones.
-    
-    Retorna:
-    - x: Solución encontrada.
-    - converged: Booleano indicando si la convergencia fue exitosa.
-    - iterations: Número de iteraciones realizadas.
     """
     n = len(A)
     x = np.array(x0, dtype=float)
@@ -356,81 +434,52 @@ def gauss_seidel_method(A, b, x0, max_iter, tol=1e-6, iteration_history=None):
                 'x': [round(float(val), 6) for val in x],
                 'error': round(float(error), 6)
             })
-        
+        logger.info(f"Gauss-Seidel Iteración {i}: x = {x}, error = {error}")
+
         if error < tol:
             converged = True
             break
-    
+
     return x.tolist(), converged, i
-def secant_method(f, x0, x1, max_iter, tol=1e-6):
-    iteration_history = []
-    for i in range(1, max_iter + 1):
-        try:
-            fx0 = f(x0)
-            fx1 = f(x1)
-            if fx1 - fx0 == 0:
-                raise ZeroDivisionError("División por cero en el método Secante.")
-            x2 = x1 - fx1 * (x1 - x0) / (fx1 - fx0)
-            error = abs(x2 - x1)
-            iteration_history.append({
-                'iteration': i,  # Añadido
-                'x': round(float(x2), 6), 
-                'fx': round(float(f(x2)), 6),
-                'error': round(float(error), 6)  
-            })
-            if error < tol:
-                return x2, True, i, iteration_history
-            x0, x1 = x1, x2
-        except Exception as e:
-            logger.error(f"Error en la iteración {i} del método Secante: {str(e)}")
-            return None, False, i, iteration_history
-    return x1, False, max_iter, iteration_history
 
 def parse_system(equations, variables):
     """
-    Analiza y valida un sistema de ecuaciones lineales.
-    
-    Parámetros:
-    - equations: Lista de cadenas representando las ecuaciones.
-    - variables: Lista de variables en el sistema.
-    
-    Retorna:
-    - A: Matriz de coeficientes.
-    - b: Vector de términos independientes.
+    Convierte una lista de ecuaciones en formato de texto a una matriz de coeficientes y un vector b.
     """
-    try:
-        num_eq = len(equations)
-        num_var = len(variables)
+    A = []
+    b_vector = []
+    for eq in equations:
+        # Suponiendo que las ecuaciones están en la forma "ax + by + cz = d"
+        if '=' not in eq:
+            raise ValueError(f"La ecuación '{eq}' no contiene un signo de igual '='.")
+        lhs, rhs = eq.split('=')
+        rhs = float(rhs.strip())
+        b_vector.append(rhs)
         
-        if num_eq != num_var:
-            raise ValueError("El número de ecuaciones debe ser igual al número de variables.")
-        
-        A = np.zeros((num_eq, num_var), dtype=float)
-        b = np.zeros(num_eq, dtype=float)
-        
-        for i, eq in enumerate(equations):
-            if '=' not in eq:
-                raise ValueError(f"La ecuación {i+1} no contiene un signo de igual.")
-            
-            lhs, rhs = eq.split('=')
-            
-            # Convertir el lado derecho en un número usando SymPy para manejar fracciones
-            rhs_expr = sp.sympify(rhs.strip())
-            b[i] = float(rhs_expr.evalf())
-            
-            # Parsear el lado izquierdo
-            expr = sp.sympify(preprocess_equation(lhs))
-            for j, var in enumerate(variables):
-                coeff = expr.coeff(sp.Symbol(var))
-                A[i][j] = float(coeff)
-        
-        # Logs para verificar las matrices
-        logger.info(f"Matriz A: {A}")
-        logger.info(f"Vector b: {b}")
-        
-        return A.tolist(), b.tolist()
-    except Exception as e:
-        raise ValueError(f"Error al parsear el sistema de ecuaciones: {str(e)}")
+        coeffs = []
+        for var in variables:
+            # Buscar el coeficiente de cada variable usando expresiones regulares
+            pattern = r'([+-]?\s*\d*\.?\d*)\s*' + re.escape(var)
+            match = re.search(pattern, lhs)
+            if match:
+                coeff_str = match.group(1).replace(' ', '')
+                if coeff_str in ['', '+']:
+                    coeff = 1.0
+                elif coeff_str == '-':
+                    coeff = -1.0
+                else:
+                    try:
+                        coeff = float(coeff_str)
+                    except ValueError:
+                        raise ValueError(f"Coeficiente inválido '{coeff_str}' para la variable '{var}'.")
+            else:
+                coeff = 0.0
+            coeffs.append(coeff)
+        A.append(coeffs)
+    logger.info(f"Matriz A: {A}")
+    logger.info(f"Vector b: {b_vector}")
+    return A, b_vector
+
 @main.route('/calculate', methods=['POST'])
 def calculate():
     try:
@@ -830,47 +879,6 @@ def calculate():
 
                     data_traces.extend([x0_trace, x1_trace])
 
-                # Generar frames para la animación
-                if iteration_history:
-                    for idx, iter_data in enumerate(iteration_history):
-                        if method == 'fixed_point':
-                            current_x = iter_data['x']
-                            current_y = g(current_x)
-                        else:
-                            current_x = iter_data['x']
-                            current_y = f(current_x)
-
-                        iteration_x.append(current_x)
-                        iteration_y.append(current_y)
-
-                        # Trace de la aproximación actual
-                        approx_trace = go.Scatter(
-                            x=[current_x],
-                            y=[current_y],
-                            mode='markers+text',
-                            name=f'Iteración {idx + 1}',
-                            marker=dict(color='red', size=10),
-                            text=[f"{idx + 1}"],
-                            textposition='top center',
-                            hoverinfo='x+y'
-                        )
-
-                        # Trace de rastro acumulado
-                        trace_rastro = go.Scatter(
-                            x=iteration_x.copy(),
-                            y=iteration_y.copy(),
-                            mode='lines',
-                            name='Rastro',
-                            line=dict(color='orange', dash='dash'),
-                            hoverinfo='none'
-                        )
-
-                        # Crear frame con ambos traces
-                        frames.append(go.Frame(
-                            data=[approx_trace, trace_rastro],
-                            name=str(idx)
-                        ))
-
                 # Definir el layout de la gráfica con animación
                 layout = go.Layout(
                     title=dict(
@@ -958,7 +966,6 @@ def calculate():
     except Exception as e:
         logger.exception("Error inesperado durante el cálculo.")
         return jsonify({'error': 'Ocurrió un error inesperado durante el cálculo.'}), 500
-
 
 @main.route('/find_valid_interval', methods=['POST'])
 def find_valid_interval_route():

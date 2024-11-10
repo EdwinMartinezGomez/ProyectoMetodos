@@ -123,7 +123,10 @@ class CalculatorApp {
             throw new Error(`Error configurando event listeners: ${error.message}`);
         }
     }
-
+    
+   
+    
+    
 
 
     validateInitialGuessSystem(event) {
@@ -425,7 +428,9 @@ class CalculatorApp {
         this.clearErrors();
 
         try {
+        
             const equation = this.elements.equationHidden.value.trim();
+
             if (!equation) {
                 throw new Error('La ecuación es requerida para encontrar un intervalo.');
             }
@@ -478,7 +483,6 @@ class CalculatorApp {
             input.setCustomValidity('');
         }
     }
-
     async handleFormSubmit(event) {
         event.preventDefault();
         this.clearErrors();
@@ -486,8 +490,11 @@ class CalculatorApp {
     
         try {
             const formData = await this.validateAndPrepareFormData();
-            console.log("Datos de formulario validados:", formData); // Asegúrate de que las ecuaciones y variables sean correctas
-    
+            console.log("Datos de formulario validados:", formData); // Verifica las ecuaciones y variables
+            
+            // Añade un log para verificar la ecuación preprocesada
+            console.log("Ecuación preprocesada para enviar:", formData.equation || formData.equations);
+            
             const response = await this.sendCalculationRequest(formData);
             await this.handleCalculationResponse(response);
         } catch (error) {
@@ -496,6 +503,7 @@ class CalculatorApp {
             this.hideLoading();
         }
     }
+    
     
     showLoading() {
         const loadingSpinner = document.createElement('div');
@@ -779,100 +787,57 @@ class CalculatorApp {
 
         return formData;
     }
-
-
-    replaceFractions(latex) {
-        let startIndex = latex.indexOf('\\frac');
-        while (startIndex !== -1) {
-            let numerator = '';
-            let denominator = '';
-            let index = startIndex + 5; // Saltar '\\frac'
-            let braceCount = 0;
-
-            // Obtener el numerador
-            if (latex[index] === '{') {
-                index++;
-                braceCount++;
-                let numStart = index;
-                while (braceCount > 0 && index < latex.length) {
-                    if (latex[index] === '{') braceCount++;
-                    else if (latex[index] === '}') braceCount--;
-                    index++;
+    replaceFractions(eq) {
+        /**
+         * Reemplaza todas las instancias de \frac{a}{b} por (a)/(b).
+         * Maneja múltiples y fracciones anidadas.
+         */
+        while (eq.includes('\\frac')) {
+            const fracStart = eq.indexOf('\\frac');
+            const firstBrace = eq.indexOf('{', fracStart);
+            if (firstBrace === -1) break;
+    
+            // Función para encontrar el índice del cierre correspondiente
+            const findClosingBrace = (str, start) => {
+                let stack = 1;
+                for (let i = start + 1; i < str.length; i++) {
+                    if (str[i] === '{') stack++;
+                    else if (str[i] === '}') stack--;
+                    if (stack === 0) return i;
                 }
-                numerator = latex.substring(numStart, index - 1);
-            } else {
-                throw new Error("Sintaxis inválida en \\frac");
-            }
-
-            // Obtener el denominador
-            if (latex[index] === '{') {
-                index++;
-                braceCount = 1;
-                let denStart = index;
-                while (braceCount > 0 && index < latex.length) {
-                    if (latex[index] === '{') braceCount++;
-                    else if (latex[index] === '}') braceCount--;
-                    index++;
-                }
-                denominator = latex.substring(denStart, index - 1);
-            } else {
-                throw new Error("Sintaxis inválida en \\frac");
-            }
-
-            // Reemplazar la fracción en el LaTeX original
-            let fracContent = latex.substring(startIndex, index);
-            let replacedContent = `(${this.replaceFractions(numerator)})/(${this.replaceFractions(denominator)})`;
-            latex = latex.replace(fracContent, replacedContent);
-
-            // Buscar la siguiente fracción
-            startIndex = latex.indexOf('\\frac');
+                return -1; // No encontrado
+            };
+    
+            const numeratorEnd = findClosingBrace(eq, firstBrace);
+            if (numeratorEnd === -1) break;
+            const numerator = eq.substring(firstBrace + 1, numeratorEnd);
+    
+            const denominatorStart = eq.indexOf('{', numeratorEnd);
+            if (denominatorStart === -1) break;
+            const denominatorEnd = findClosingBrace(eq, denominatorStart);
+            if (denominatorEnd === -1) break;
+            const denominator = eq.substring(denominatorStart + 1, denominatorEnd);
+    
+            // Reemplazar \frac{numerator}{denominator} por (numerator)/(denominator)
+            const frac = eq.substring(fracStart, denominatorEnd + 1);
+            const replacement = `(${numerator})/(${denominator})`;
+            eq = eq.replace(frac, replacement);
         }
-        return latex;
+        return eq;
     }
-
     latexToJavaScript(latex) {
         let processedLatex = latex;
         console.log("Original LaTeX:", processedLatex);
-       
-        // Eliminar caracteres de control y espacios invisibles
-        processedLatex = processedLatex.replace(/\u200b/g, '');
-        
-        // Reemplazar fracciones recursivamente
-        try {
-            processedLatex = this.replaceFractions(processedLatex);
-        } catch (error) {
-            console.error("Error al reemplazar fracciones:", error);
-            alert(error.message);
-            throw error;
-        }
-        
+    
+        // 1. Reemplazar \frac{a}{b} por (a)/(b)
+        processedLatex = this.replaceFractions(processedLatex);
         console.log("Después de reemplazar fracciones:", processedLatex);
     
-        // Dividir en LHS y RHS
-        const [lhs, rhs] = processedLatex.split('=');
-        if (!lhs || !rhs) {
-            throw new Error("La ecuación debe contener un solo signo de igual '='.");
-        }
-    
-        // Evaluar RHS para convertir fracciones a decimales si es necesario
-        let rhsEvaluated;
-        try {
-            rhsEvaluated = eval(rhs.trim()); // Convierte fracciones como '1/2' a decimales
-        } catch (error) {
-            throw new Error("El lado derecho de la ecuación debe ser un número o una fracción.");
-        }
-    
-        // Validar que RHS sea numérico después de la evaluación
-        if (isNaN(rhsEvaluated)) {
-            throw new Error("El lado derecho de la ecuación debe ser un número.");
-        }
-    
-        // Continuar con las transformaciones y verificar el estado
-        processedLatex = processedLatex.replace(/Math\./g, '');
-        console.log("Después de eliminar 'Math.':", processedLatex);
-    
-        // Reemplazar otros comandos matemáticos
+        // 2. Reemplazar \sqrt{...} por sqrt(...)
         processedLatex = processedLatex.replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)');
+        console.log("Después de reemplazar '\\sqrt{...}':", processedLatex);
+    
+        // 3. Reemplazar otros comandos de LaTeX
         processedLatex = processedLatex.replace(/\\left|\\right/g, '');
         processedLatex = processedLatex.replace(/\\cdot|\\times/g, '*');
         processedLatex = processedLatex.replace(/\\div/g, '/');
@@ -880,38 +845,75 @@ class CalculatorApp {
         processedLatex = processedLatex.replace(/\\ln/g, 'log');
         processedLatex = processedLatex.replace(/\\log/g, 'log10');
         processedLatex = processedLatex.replace(/\\exp\{([^{}]+)\}/g, 'exp($1)');
-        processedLatex = processedLatex.replace(/\\exp/g, 'exp');
         processedLatex = processedLatex.replace(/\\sin/g, 'sin');
         processedLatex = processedLatex.replace(/\\cos/g, 'cos');
         processedLatex = processedLatex.replace(/\\tan/g, 'tan');
+        console.log("Después de reemplazar otros comandos de LaTeX:", processedLatex);
     
-        // Reemplazar exponentes y verificar estado
-        processedLatex = processedLatex.replace(/e\^\{([^}]+)\}/g, 'exp($1)');
+        // 4. Reemplazar '{' y '}' por '(' y ')'
+        processedLatex = processedLatex.replace(/{/g, '(').replace(/}/g, ')');
+        console.log("Después de reemplazar '{' y '}' por '()':", processedLatex);
+    
+        // 5. Insertar explícitamente '*' entre dígitos y letras o '(' con manejo de espacios
+        processedLatex = processedLatex.replace(/(\d)\s*([a-zA-Z(])/g, '$1*$2');
+        processedLatex = processedLatex.replace(/(\))\s*([a-zA-Z(])/g, '$1*$2');
+        console.log("Después de insertar '*':", processedLatex);
+    
+        // 6. Reemplazar '^' por '**' para exponentiación
         processedLatex = processedLatex.replace(/\^/g, '**');
-        console.log("Después de reemplazar exponentes:", processedLatex);
+        console.log("Después de reemplazar '^' por '**':", processedLatex);
     
-        // Reglas de multiplicación implícita ajustadas y estado final
-        processedLatex = processedLatex.replace(/(\d)([a-zA-Z(])/g, '$1*$2');
-        processedLatex = processedLatex.replace(/([a-zA-Z])(\d)/g, '$1*$2');
-        processedLatex = processedLatex.replace(/(\d)\(/g, '$1*(');
-        processedLatex = processedLatex.replace(/([a-zA-Z])\(/g, '$1*(');
-        processedLatex = processedLatex.replace(/\)([a-zA-Z])/g, ')*$1');
-        processedLatex = processedLatex.replace(/\)(\d)/g, ')*$1');
-        
-        // Validar que los paréntesis estén equilibrados
+        // Validar paréntesis balanceados
         const openParens = (processedLatex.match(/\(/g) || []).length;
         const closeParens = (processedLatex.match(/\)/g) || []).length;
         if (openParens !== closeParens) {
             throw new Error("La ecuación contiene paréntesis desbalanceados.");
         }
     
-        // Eliminar espacios
-        processedLatex = processedLatex.replace(/\s+/g, '');
-        
-        console.log("Procesado LaTeX a JavaScript:", processedLatex);
+        console.log("Ecuación preprocesada para enviar:", processedLatex);
         return processedLatex;
     }
     
+gFunctionToJavaScript(gFunc) {
+    let processedGFunc = gFunc;
+    console.log("Original gFunction LaTeX:", processedGFunc);
+
+    // Corregir fracciones mal formadas
+    processedGFunc = replaceFractions(processedGFunc);
+    console.log("Después de reemplazar fracciones en gFunction:", processedGFunc);
+
+    // Reemplazar otros comandos matemáticos
+    processedGFunc = processedGFunc.replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)');
+    processedGFunc = processedGFunc.replace(/\\left|\\right/g, '');
+    processedGFunc = processedGFunc.replace(/\\cdot|\\times/g, '*');
+    processedGFunc = processedGFunc.replace(/\\div/g, '/');
+    processedGFunc = processedGFunc.replace(/\\pi/g, 'pi');
+    processedGFunc = processedGFunc.replace(/\\ln/g, 'log');
+    processedGFunc = processedGFunc.replace(/\\log/g, 'log10');
+    processedGFunc = processedGFunc.replace(/\\exp\{([^{}]+)\}/g, 'exp($1)');
+    processedGFunc = processedGFunc.replace(/\\sin/g, 'sin');
+    processedGFunc = processedGFunc.replace(/\\cos/g, 'cos');
+    processedGFunc = processedGFunc.replace(/\\tan/g, 'tan');
+
+    // Reglas de multiplicación implícita
+    processedGFunc = processedGFunc.replace(/(\d)([a-zA-Z(])/g, '$1*$2');
+    processedGFunc = processedGFunc.replace(/([a-zA-Z)])([a-zA-Z(])/g, '$1*$2');
+    processedGFunc = processedGFunc.replace(/\)([a-zA-Z(])/g, ')*$1');
+
+    // Insertar '*' entre ')' y cualquier letra
+    processedGFunc = processedGFunc.replace(/([a-zA-Z)])([a-zA-Z(])/g, '$1*$2');
+    console.log("Después de insertar '*', gFunction:", processedGFunc);
+
+    // Validar paréntesis balanceados
+    const openParens = (processedGFunc.match(/\(/g) || []).length;
+    const closeParens = (processedGFunc.match(/\)/g) || []).length;
+    if (openParens !== closeParens) {
+        throw new Error("gFunction contiene paréntesis desbalanceados.");
+    }
+
+    return processedGFunc;
+}
+
     
     displayResults(result) {
         this.elements.resultTable.innerHTML = '';

@@ -13,6 +13,7 @@ class CalculatorApp {
             this.handleInitializationError(error);
         }
     }
+
     initializeElements() {
         try {
             this.elements = {
@@ -34,7 +35,9 @@ class CalculatorApp {
                 findIntervalBtn: this.getRequiredElement('find-interval-btn'),
                 initialGuessSystem: this.getRequiredElement('initialGuessSystem'),
                 singleEquationInput: this.getRequiredElement('singleEquationInput'),
-                // Añadimos estos elementos:
+                // Nuevos elementos añadidos:
+                toggleKeyboardBtn: this.getRequiredElement('toggle-keyboard-btn'),
+                keyboardContainer: this.getRequiredElement('keyboard-container'),
                 gFunctionInput: this.getRequiredElement('gFunctionInput'),
                 gFunctionHidden: this.getRequiredElement('gFunctionHidden'),
             };
@@ -182,10 +185,24 @@ class CalculatorApp {
             // Inicializar el estado correcto al cargar la página
             this.handleMethodChange({ target: this.elements.methodSelect });
             console.log("Event listeners configurados correctamente.");
+
+            // **Añadir el Event Listener para el Toggle del Teclado Virtual**
+            this.elements.toggleKeyboardBtn.addEventListener('click', this.toggleKeyboard.bind(this));
         } catch (error) {
             throw new Error(`Error configurando event listeners: ${error.message}`);
         }
     }
+
+    /**
+     * Método para alternar la visibilidad del teclado virtual.
+     */
+    toggleKeyboard() {
+        const isVisible = this.elements.keyboardContainer.classList.contains('show');
+        this.elements.keyboardContainer.classList.toggle('show');
+        this.elements.toggleKeyboardBtn.setAttribute('aria-pressed', !isVisible);
+        this.elements.toggleKeyboardBtn.setAttribute('aria-label', isVisible ? 'Mostrar Teclado Virtual' : 'Ocultar Teclado Virtual');
+    }
+    
 
     validateInitialGuessSystem(event) {
         const input = event.target;
@@ -221,8 +238,7 @@ class CalculatorApp {
             this.elements.secantInputs.querySelectorAll('input').forEach(input => input.required = true);
 
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'initialGuessInput',
-                'fixedPointInputs', 'systemInputs', 'equationsContainer',
-                'variablesContainer', 'initialGuessSystem']);
+                'fixedPointInputs', 'systemInputs', 'equationsContainer', 'variablesContainer', 'initialGuessSystem']);
             this.elements.singleEquationInput.style.display = 'block';
             this.disableFields(['a', 'b']);
         }
@@ -231,8 +247,7 @@ class CalculatorApp {
             this.elements.initialGuessInput.querySelector('input').required = true;
 
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'secantInputs',
-                'fixedPointInputs', 'systemInputs', 'equationsContainer',
-                'variablesContainer', 'initialGuessSystem']);
+                'fixedPointInputs', 'systemInputs', 'equationsContainer', 'variablesContainer', 'initialGuessSystem']);
             this.elements.singleEquationInput.style.display = 'block';
             this.disableFields(['a', 'b']);
         }
@@ -243,8 +258,7 @@ class CalculatorApp {
 
             // Ocultar otros campos
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'secantInputs',
-                'systemInputs', 'equationsContainer', 'variablesContainer',
-                'initialGuessSystem']);
+                'systemInputs', 'equationsContainer', 'variablesContainer', 'initialGuessSystem']);
             this.elements.singleEquationInput.style.display = 'block';
             this.disableFields(['a', 'b']);
         }
@@ -418,7 +432,6 @@ class CalculatorApp {
         mathField.focus();
     }
 
-
     updateVariables() {
         const numVariables = parseInt(this.elements.form.querySelector('#numVariables').value, 10);
         const variablesList = this.elements.variablesContainer.querySelector('#variablesList');
@@ -476,10 +489,6 @@ class CalculatorApp {
             });
 
             this.allMathFields.set(`equation_${i}`, mathField);
-
-
-
-
         }
 
         // **Enfocar automáticamente el primer campo de ecuación**

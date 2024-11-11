@@ -441,6 +441,71 @@ def gauss_seidel_method(A, b, x0, max_iter, tol=1e-6, iteration_history=None):
             break
 
     return x.tolist(), converged, i
+def trapezoidal_rule(f, a, b, n):
+    """
+    Implementa la regla del Trapecio para integración numérica.
+
+    Parámetros:
+    - f: función a integrar
+    - a: límite inferior de integración
+    - b: límite superior de integración
+    - n: número de subintervalos
+
+    Retorna:
+    - aproximación de la integral
+    - historial de iteraciones
+    """
+    h = (b - a) / n
+    s = 0.5 * (f(a) + f(b))
+    iteration_history = []
+
+    for i in range(1, n):
+        x_i = a + i * h
+        fx_i = f(x_i)
+        s += fx_i
+        iteration_history.append({
+            'i': i,
+            'x_i': round(float(x_i), 6),
+            'f(x_i)': round(float(fx_i), 6)
+        })
+
+    integral = h * s
+    return integral, iteration_history
+
+def simpsons_rule(f, a, b, n):
+    """
+    Implementa la regla de Simpson para integración numérica.
+
+    Parámetros:
+    - f: función a integrar
+    - a: límite inferior de integración
+    - b: límite superior de integración
+    - n: número de subintervalos (debe ser par)
+
+    Retorna:
+    - aproximación de la integral
+    - historial de iteraciones
+    """
+    if n % 2:
+        raise ValueError("El número de subintervalos n debe ser par para el método de Simpson.")
+    h = (b - a) / n
+    s = f(a) + f(b)
+    iteration_history = []
+
+    for i in range(1, n):
+        x_i = a + i * h
+        fx_i = f(x_i)
+        coeficiente = 4 if i % 2 else 2
+        s += coeficiente * fx_i
+        iteration_history.append({
+            'i': i,
+            'x_i': round(float(x_i), 6),
+            'f(x_i)': round(float(fx_i), 6),
+            'coeficiente': coeficiente
+        })
+
+    integral = (h / 3) * s
+    return integral, iteration_history
 
 def parse_system(equations, variables):
     """

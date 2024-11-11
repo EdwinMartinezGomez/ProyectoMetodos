@@ -1,215 +1,426 @@
-/* General Styles */
-* {
-    font-family: sans-serif;
-    font-size: 18px;
+/* =======================
+   :root Variables
+   ======================= */
+   :root {
+    /* Font */
+    --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --font-size-base: 16px;
+
+    /* Colors */
+    --color-background: #E7E7E7;
+    --color-white: #FFFFFF;
+    --color-gray-light: #f9f9f9;
+    --color-gray: #ced4da;
+    --color-gray-dark: #dee2e6;
+    --color-primary: #007bff;
+    --color-primary-hover: #0056b3;
+    --color-danger: #dc3545;
+    --color-danger-hover: #c82333;
+    --color-shadow: rgba(0, 0, 0, 0.1);
+    --color-shadow-hover: rgba(0, 0, 0, 0.15);
+    --color-gray-active: #e0e0e0; /* Nueva variable para el estado activo */
+
+    /* Spacing */
+    --spacing-small: 8px;
+    --spacing-medium: 15px;
+    --spacing-large: 20px;
+
+    /* Border Radius */
+    --border-radius: 8px;
+}
+
+/* =======================
+   General Styles
+   ======================= */
+*,
+*::before,
+*::after {
     box-sizing: border-box;
 }
 
 body {
     margin: 0;
     padding: 0;
-    background-color: #E7E7E7;
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    background-color: var(--color-background);
     overflow-x: hidden;
+    color: #333;
 }
 
-/* Layout */
+/* =======================
+   Layout
+   ======================= */
 .main-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    padding: 20px;
-    height: 100vh;
-    overflow: hidden;
+    display: flex;
+    min-height: 100vh;
+    padding: var(--spacing-large);
+    gap: var(--spacing-large);
+    background-color: var(--color-background);
+    flex-wrap: nowrap;
 }
 
-/* Calculator Side */
-.calculator-side {
-    overflow-y: auto;
-    padding-right: 20px;
-    height: 100%;
-}
-
-.calculator-container {
+.calculator-side,
+.graph-side {
+    background-color: var(--color-white);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 8px var(--color-shadow);
+    padding: var(--spacing-medium);
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--spacing-medium);
 }
 
-/* Graph Side */
-.graph-side {
-    position: sticky;
-    top: 20px;
-    height: calc(100vh - 40px);
-    width: 100%; /* Ocupa todo el ancho del contenedor */
-    overflow: hidden;
+.calculator-side {
+    flex: 1;
+    max-width: 600px; /* Ajusta según sea necesario */
+    display: flex;
+    flex-direction: column;
 }
+
+.graph-side {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+}
+
 .plot-container {
-    height: 100%;
-    width: 100%;
-    background: #f9f9f9; /* Fondo claro */
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    flex: 1;
+    background: var(--color-gray-light);
+    border: 1px solid var(--color-gray);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-medium);
+    box-shadow: 0 4px 8px var(--color-shadow);
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 #plotHtmlContainer {
-    height: 100%;
     width: 100%;
-}
-#find-interval-btn {
-    white-space: nowrap;
-    font-size: 0.9rem; /* Ajusta el tamaño de la fuente según sea necesario */
-    padding: 8px 0;    /* Ajusta el espaciado interno según prefieras */
+    height: 100%;
 }
 
-
-/* Keyboard Styles */
+/* =======================
+   Keyboard Styles
+   ======================= */
 .keyboard-container {
-    background: white;
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    margin-top: 20px;
+    position: fixed;
+    bottom: 60px; /* Espacio para el botón */
+    left: 20px;
+    background: var(--color-white);
+    padding: var(--spacing-medium);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px var(--color-shadow);
+    width: 300px; /* Ajusta el ancho según sea necesario */
+    z-index: 1000;
+    transition: width 0.5s ease, left 0.5s ease, bottom 0.5s ease;
 }
 
 .keyboard {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--spacing-small);
     width: 100%;
-    max-width: 600px;
+    max-width: 100%;
+    margin: 0 auto;
 }
 
 .row-keyboard {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(45px, 1fr));
-    gap: 8px;
-    justify-content: center;
-    margin-bottom: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    gap: var(--spacing-small);
+    justify-items: stretch;
 }
 
 .calc-btn {
-    min-width: 45px;
-    height: 45px;
-    padding: 8px;
-    border: 1px solid #dee2e6;
+    width: 100%;
+    padding: var(--spacing-small);
+    border: 1px solid var(--color-gray-dark);
     border-radius: 6px;
-    background-color: white;
+    background-color: var(--color-white);
     color: #333;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1.1em;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 2px 4px var(--color-shadow);
+    height: 50px;
 }
 
 .calc-btn:hover {
-    background-color: #e9ecef;
-    transform: translateY(-1px);
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+    background-color: var(--color-gray-light);
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 4px 8px var(--color-shadow-hover);
 }
 
-.del-btn {
-    background-color: #dc3545;
-    color: white;
+.calc-btn:active {
+    background-color: var(--color-gray-active);
+    transform: translateY(0px) scale(1);
+    box-shadow: 0 2px 4px var(--color-shadow);
+}
+
+.calc-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.5);
+}
+
+.calc-btn.del-btn {
+    background-color: var(--color-danger);
+    color: var(--color-white);
     grid-column: span 2;
 }
 
-.del-btn:hover {
-    background-color: #c82333;
+.calc-btn.del-btn:hover {
+    background-color: var(--color-danger-hover);
 }
 
-/* Form and Input Styles */
+.calc-btn.del-btn:active {
+    background-color: var(--color-danger-hover);
+    box-shadow: 0 2px 4px var(--color-shadow);
+}
+
+.calc-btn.del-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.5);
+}
+
+/* =======================
+   Toggle Keyboard Button Styles
+   ======================= */
+.toggle-keyboard-btn {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1001;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px var(--color-shadow);
+    transition: background-color 0.3s ease;
+}
+
+.toggle-keyboard-btn:hover {
+    background-color: var(--color-gray-light);
+}
+
+/* =======================
+   Icon Styles
+   ======================= */
+.btn-icon {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+}
+
+/* =======================
+   Form and Input Styles
+   ======================= */
+#math-input,
+.mq-editable-field,
+.form-control {
+    width: 100%;
+    padding: 6px 12px;
+    font-size: 1em;
+    border: 1px solid var(--color-gray);
+    border-radius: 0.25rem;
+    background-color: var(--color-background);
+    min-height: 38px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#math-input {
+    height: auto;
+}
+
 .mq-editable-field {
-    width: 100% !important;
-    border: 1px solid #ced4da !important;
-    border-radius: 0.25rem !important;
-    min-height: 38px !important;
-    padding: 6px 12px !important;
-    background-color: #E7E7E7;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .mq-editable-field.mq-focused {
-    border-color: #86b7fe !important;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
 }
 
 .mq-math-mode {
-    font-size: 1.15em !important;
+    font-size: 1.15em;
 }
 
 #error {
     overflow: auto;
-    /* Permite desplazamiento si el contenido desborda */
     word-wrap: break-word;
-    /* Permite que el texto largo se divida en múltiples líneas */
     max-height: 100px;
-    /* Limita la altura del cuadro de error */
     display: none;
-    /* Asegura que el cuadro de error esté oculto inicialmente */
+    color: var(--color-danger);
 }
 
-#resultsDiv {
+.results-section {
     overflow: auto;
     max-height: 300px;
-    /* Controla la altura máxima de los resultados */
     word-wrap: break-word;
+    background-color: var(--color-gray-light);
+    padding: var(--spacing-medium);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px var(--color-shadow);
+}
+
+.results-table {
+    width: 100%;
 }
 
 .result-card {
     margin: 0;
     border: none;
     box-shadow: none;
+    background-color: var(--color-white);
+    padding: var(--spacing-small);
+    border-radius: var(--border-radius);
+    transition: box-shadow 0.3s ease;
 }
 
 .result-card:hover {
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    box-shadow: 0 0.5rem 1rem var(--color-shadow-hover);
 }
-@media (max-width: 768px) {
+
+/* =======================
+   Responsive Design
+   ======================= */
+@media (max-width: 1200px) {
     .main-container {
-        grid-template-columns: 1fr;
-        height: auto;
-        overflow: visible;
+        flex-direction: column;
+        align-items: stretch;
     }
 
     .graph-side {
         position: static;
-        height: 400px; /* Define una altura específica para pantallas pequeñas */
-        width: 100%; /* Asegura que ocupe todo el ancho en pantallas pequeñas */
+        height: auto;
     }
 
-    #plotHtmlContainer {
-        height: 100%;
-        width: 100%;
+    /* Ajuste adicional para el teclado */
+    .keyboard {
+        max-width: 100%;
     }
 }
 
+@media (max-width: 768px) {
+    .row-keyboard {
+        grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+    }
 
+    .calc-btn {
+        font-size: 1em;
+        height: 45px;
+    }
+
+    .keyboard-container {
+        width: 250px;
+    }
+
+    .toggle-keyboard-btn {
+        width: 40px;
+        height: 40px;
+    }
+}
 
 @media (max-width: 600px) {
-    .calc-btn {
-        font-size: 0.9em;
+    .row-keyboard {
+        grid-template-columns: repeat(auto-fill, minmax(45px, 1fr));
     }
 
-    .row-keyboard {
-        grid-template-columns: repeat(3, 1fr);
+    .calc-btn {
+        font-size: 0.9em;
+        height: 40px;
+    }
+
+    .keyboard-container {
+        width: 200px;
     }
 }
 
-@media (max-width: 400px) {
-    .calc-btn {
-        font-size: 0.85em;
-        height: 40px;
-        min-width: 40px;
+@media (max-width: 480px) {
+    .row-keyboard {
+        grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
     }
 
-    .row-keyboard {
-        grid-template-columns: repeat(2, 1fr);
+    .calc-btn {
+        font-size: 0.8em;
+        height: 35px;
+    }
+
+    .keyboard-container {
+        width: 150px;
+    }
+}
+
+/* Añade esto al final de tu style.css */
+
+/* Estilos para el teclado expandido */
+.keyboard-container.expanded {
+    left: 0;
+    width: 100%;
+    bottom: 0; /* Puedes ajustar esta propiedad según prefieras */
+    border-radius: 0;
+    padding: var(--spacing-medium);
+    transition: width 0.5s ease, left 0.5s ease, bottom 0.5s ease;
+    display: flex;
+    justify-content: center;
+}
+
+.keyboard-container.expanded .keyboard {
+    width: 100%;
+    max-width: none;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.keyboard-container.expanded .row-keyboard {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.keyboard-container.expanded .calc-btn {
+    flex: 1 1 12%; /* Reducido de 15% a 12% */
+    margin: 3px;    /* Reducido de 5px a 3px */
+    min-width: 40px; /* Reducido de 50px a 40px */
+    max-width: 80px; /* Opcional: limitar el ancho máximo */
+    height: 40px;    /* Reducido de 50px a 40px */
+    font-size: 0.9em; /* Reducir el tamaño de la fuente */
+    transition: flex-basis 0.3s ease, margin 0.3s ease, height 0.3s ease, font-size 0.3s ease;
+}
+
+/* Botones aún más pequeños en pantallas muy grandes */
+@media (min-width: 1200px) {
+    .keyboard-container.expanded .calc-btn {
+        flex: 1 1 10%;
+        max-width: 70px;
+        height: 35px;
+        font-size: 0.85em;
+    }
+}
+
+/* Ajustes para pantallas medianas */
+@media (max-width: 1200px) and (min-width: 768px) {
+    .keyboard-container.expanded .calc-btn {
+        flex: 1 1 12%;
+        max-width: 80px;
+        height: 40px;
+        font-size: 0.9em;
+    }
+}
+
+/* Ajustes para pantallas pequeñas */
+@media (max-width: 768px) {
+    .keyboard-container.expanded .calc-btn {
+        flex: 1 1 15%;
+        max-width: 75px;
+        height: 38px;
+        font-size: 0.85em;
     }
 }

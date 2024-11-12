@@ -40,12 +40,21 @@ class CalculatorApp {
                 keyboardContainer: this.getRequiredElement('keyboard-container'),
                 gFunctionInput: this.getRequiredElement('gFunctionInput'),
                 gFunctionHidden: this.getRequiredElement('gFunctionHidden'),
+                integrationInputs: this.getRequiredElement('integrationInputs'), // Añadido
+                // Añade referencias a los nuevos campos de integración
+                aIntegration: this.getRequiredElement('a_integration'),
+                bIntegration: this.getRequiredElement('b_integration'),
+                nIntegration: this.getRequiredElement('n_integration'),
+                aBisection: this.getRequiredElement('a_bisection'),
+                bBisection: this.getRequiredElement('b_bisection'),
+                // ... otros elementos según sea necesario
             };
             console.log("Elementos inicializados correctamente:", this.elements);
         } catch (error) {
             throw new Error(`Error inicializando elementos: ${error.message}`);
         }
     }
+    
 
     initializeMathQuill() {
         try {
@@ -110,6 +119,7 @@ class CalculatorApp {
         }
     }
 
+
     // Método para agregar dinámicamente nuevos campos MathQuill (útil para sistemas de ecuaciones)
     addMathQuillField(elementId, fieldIdentifier) {
         const MQ = MathQuill.getInterface(2);
@@ -156,6 +166,7 @@ class CalculatorApp {
         return element;
     }
 
+   
     setupEventListeners() {
         try {
             this.elements.form.addEventListener('submit', this.handleFormSubmit.bind(this));
@@ -193,6 +204,7 @@ class CalculatorApp {
         }
     }
 
+
     /**
      * Método para alternar la visibilidad del teclado virtual.
      */
@@ -216,87 +228,106 @@ class CalculatorApp {
 
     handleMethodChange(event) {
         const selectedMethod = event.target.value;
-
+    
         // Reset 'required' for all fields
         this.elements.form.querySelectorAll('input').forEach(input => input.required = false);
-
-        // Show/hide fields based on the selected method
+    
+        // Mostrar/ocultar campos según el método seleccionado
         if (selectedMethod === 'bisection') {
             this.elements.intervalInputs.style.display = 'flex';
             this.elements.findIntervalBtn.style.display = 'block';
-            this.elements.form.querySelector('#a').required = true;
-            this.elements.form.querySelector('#b').required = true;
-
+            this.elements.aBisection.required = true;
+            this.elements.bBisection.required = true;
+    
             this.hideFields(['secantInputs', 'initialGuessInput', 'fixedPointInputs',
                 'systemInputs', 'equationsContainer', 'variablesContainer',
-                'initialGuessSystem']);
+                'initialGuessSystem', 'integrationInputs']);
             this.elements.singleEquationInput.style.display = 'block';
-            this.enableFields(['a', 'b']);
+            this.enableFields(['a_bisection', 'b_bisection']);
         }
         else if (selectedMethod === 'secant') {
             this.elements.secantInputs.style.display = 'flex';
             this.elements.secantInputs.querySelectorAll('input').forEach(input => input.required = true);
-
+    
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'initialGuessInput',
-                'fixedPointInputs', 'systemInputs', 'equationsContainer', 'variablesContainer', 'initialGuessSystem']);
+                'fixedPointInputs', 'systemInputs', 'equationsContainer', 'variablesContainer',
+                'initialGuessSystem', 'integrationInputs']);
             this.elements.singleEquationInput.style.display = 'block';
-            this.disableFields(['a', 'b']);
+            this.disableFields(['a_bisection', 'b_bisection']);
         }
         else if (selectedMethod === 'newton') {
             this.elements.initialGuessInput.style.display = 'block';
             this.elements.initialGuessInput.querySelector('input').required = true;
-
+    
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'secantInputs',
-                'fixedPointInputs', 'systemInputs', 'equationsContainer', 'variablesContainer', 'initialGuessSystem']);
+                'fixedPointInputs', 'systemInputs', 'equationsContainer', 'variablesContainer',
+                'initialGuessSystem', 'integrationInputs']);
             this.elements.singleEquationInput.style.display = 'block';
-            this.disableFields(['a', 'b']);
+            this.disableFields(['a_bisection', 'b_bisection']);
         }
         else if (selectedMethod === 'fixed_point') {
             this.elements.initialGuessInput.style.display = 'block';
             this.elements.fixedPointInputs.style.display = 'block';
             this.elements.initialGuessInput.querySelector('input').required = true;
-
+    
             // Ocultar otros campos
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'secantInputs',
-                'systemInputs', 'equationsContainer', 'variablesContainer', 'initialGuessSystem']);
+                'systemInputs', 'equationsContainer', 'variablesContainer', 'initialGuessSystem',
+                'integrationInputs']);
             this.elements.singleEquationInput.style.display = 'block';
-            this.disableFields(['a', 'b']);
+            this.disableFields(['a_bisection', 'b_bisection']);
         }
-
         else if (selectedMethod === 'jacobi' || selectedMethod === 'gauss_seidel') {
             this.elements.systemInputs.style.display = 'block';
             this.elements.equationsContainer.style.display = 'block';
             this.elements.variablesContainer.style.display = 'block';
             this.elements.initialGuessSystem.style.display = 'block';
             this.elements.initialGuessSystem.querySelector('input').required = true;
-
+    
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'secantInputs',
-                'initialGuessInput', 'fixedPointInputs', 'singleEquationInput']);
-            this.disableFields(['a', 'b']);
-
-            // Add 'required' to all 'variables[]' fields dynamically
+                'initialGuessInput', 'fixedPointInputs', 'singleEquationInput',
+                'integrationInputs']);
+            this.disableFields(['a_bisection', 'b_bisection']);
+    
+            // Agregar 'required' a todos los campos 'variables[]' dinámicamente
             const variableInputs = this.elements.variablesContainer.querySelectorAll('input[name="variables[]"]');
             variableInputs.forEach(input => input.required = true);
+        }
+        else if (selectedMethod === 'trapezoidal' || selectedMethod === 'simpson') {
+            // Mostrar campos de integración
+            this.elements.integrationInputs.style.display = 'flex';
+            this.elements.integrationInputs.querySelectorAll('input').forEach(input => {
+                input.required = true;
+            });
+    
+            this.hideFields(['intervalInputs', 'findIntervalBtn', 'secantInputs',
+                'initialGuessInput', 'fixedPointInputs', 'systemInputs',
+                'equationsContainer', 'variablesContainer', 'initialGuessSystem']);
+            this.elements.singleEquationInput.style.display = 'block';
+            this.disableFields(['a_bisection', 'b_bisection']);
         }
         else {
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'initialGuessInput',
                 'fixedPointInputs', 'secantInputs', 'systemInputs',
-                'equationsContainer', 'variablesContainer', 'initialGuessSystem']);
+                'equationsContainer', 'variablesContainer', 'initialGuessSystem',
+                'integrationInputs']);
             this.elements.singleEquationInput.style.display = 'block';
-            this.disableFields(['a', 'b']);
+            this.disableFields(['a_bisection', 'b_bisection']);
         }
-
-        // Initialize or clear MathQuill based on the selected method
+    
+        // Inicializar o limpiar MathQuill según el método seleccionado
         this.toggleMathQuill(selectedMethod);
-
-        // Optional: Update example in MathQuill
+    
+        // Actualizar ejemplo en MathQuill
         const examples = {
-            'bisection': 'x^2 - 4',
-            'newton': 'x^3 - 2x - 5',
+            'bisection': 'x**2 - 4',
+            'newton': 'x**3 - 2*x - 5',
             'secant': '',
             'fixed_point': '',
             'jacobi': 'Sistema de 2 ecuaciones',
-            'gauss_seidel': 'Sistema de 2 ecuaciones'
+            'gauss_seidel': 'Sistema de 2 ecuaciones',
+            'trapezoidal': 'x**2 - 4',
+            'simpson': 'x**2 - 4'
         };
         if (this.activeMathField && examples[selectedMethod]) {
             this.activeMathField.latex(examples[selectedMethod]);
@@ -304,7 +335,9 @@ class CalculatorApp {
             this.activeMathField.latex('');
         }
     }
-
+    
+    
+    
     // Utility functions to show/hide fields and enable/disable inputs
     hideFields(fields) {
         fields.forEach(field => this.elements[field].style.display = 'none');
@@ -501,39 +534,37 @@ class CalculatorApp {
         console.log(`Ecuaciones actualizadas: ${equationsList.innerHTML}`);
     }
 
-    async handleFindInterval(event) {
-        event.preventDefault();
-        this.clearErrors();
-
+    async handleFindInterval() {
+        const equation = this.elements.equationHidden.value.trim();
+    
+        if (!equation) {
+            this.showError('La ecuación es requerida para encontrar el intervalo.');
+            return;
+        }
+    
         try {
-
-            const equation = this.elements.equationHidden.value.trim();
-
-            if (!equation) {
-                throw new Error('La ecuación es requerida para encontrar un intervalo.');
-            }
-
             const response = await fetch('/find_valid_interval', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ equation })
+                body: JSON.stringify({ equation }) // Solo envía 'equation'
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error al encontrar intervalo.');
-            }
-
+    
             const data = await response.json();
-            this.elements.form.a.value = data.a;
-            this.elements.form.b.value = data.b;
-
-            // Mostrar mensaje de éxito (opcional)
-            alert(`Intervalo encontrado: a = ${data.a}, b = ${data.b}`);
+            if (data.error) {
+                this.showError(data.error);
+            } else {
+                // Actualiza los campos 'a_bisection' y 'b_bisection' con los valores recibidos
+                this.elements.aBisection.value = data.a;
+                this.elements.bBisection.value = data.b;
+            }
         } catch (error) {
-            this.showError(error.message);
+            this.showError('Error al comunicarse con el servidor.');
+            console.error('Error en handleFindInterval:', error);
         }
     }
+    
+    
+    
 
     showSuccess(message) {
         const successDiv = document.createElement('div');
@@ -566,22 +597,20 @@ class CalculatorApp {
         event.preventDefault();
         this.clearErrors();
         this.showLoading();
-
+    
         try {
             const formData = await this.validateAndPrepareFormData();
-            console.log("Datos de formulario validados:", formData); // Verifica las ecuaciones y variables
-
-            // Añade un log para verificar la ecuación preprocesada
-            console.log("Ecuación preprocesada para enviar:", formData.equation || formData.equations);
-
+            console.log("Datos de formulario validados:", formData);
+    
             const response = await this.sendCalculationRequest(formData);
-            await this.handleCalculationResponse(response);
+            await this.handleCalculationResponse(response, formData.method);
         } catch (error) {
             this.handleError(error);
         } finally {
             this.hideLoading();
         }
     }
+    
 
     showLoading() {
         const loadingSpinner = document.createElement('div');
@@ -654,24 +683,31 @@ class CalculatorApp {
             } else if (response.root) {
                 // Mostrar resultados para métodos de una sola ecuación
                 this.displayMainResults(response);
+            }else if (response.area !== undefined && response.error !== undefined) {
+                // Mostrar resultados para métodos de integración
+                this.displayIntegrationResults(response);
             }
 
-            // Verificar y mostrar el historial de iteraciones si está presente
-            if (response.iteration_history) {
-                if (response.solution) {
-                    // Método para sistemas de ecuaciones
-                    this.displayIterationHistory(response.iteration_history, response.solution);
-                } else {
-                    // Método para una sola ecuación
-                    this.displayIterationHistory(response.iteration_history, response.root);
-                }
-            }
-
-            if (response.plot_json) {
-                this.renderPlot(response.plot_json);
+           // Verificar y mostrar el historial de iteraciones si está presente
+        if (response.iteration_history) {
+            if (response.solution) {
+                // Método para sistemas de ecuaciones
+                this.displayIterationHistory(response.iteration_history, response.solution);
             } else {
-                console.warn('No se proporcionó plot_json en la respuesta.');
+                // Método para una sola ecuación
+                this.displayIterationHistory(response.iteration_history, response.root);
             }
+        }
+
+        if (response.plot_json) {
+            if (method === 'trapezoidal') {
+                this.renderPlot(response.plot_json, method, response.trapezoids || []);
+            } else {
+                this.renderPlot(response.plot_json);
+            }
+        } else {
+            console.warn('No se proporcionó plot_json en la respuesta.');
+        }
         } catch (error) {
             this.showError(`Error al mostrar resultados: ${error.message}`);
         }
@@ -679,37 +715,51 @@ class CalculatorApp {
         this.elements.resultsDiv.style.display = 'block';
     }
 
-    renderPlot(plotJson) {
-        try {
-            const plotData = JSON.parse(plotJson);
+displayIntegrationResults(result) {
+    this.addResultRow(
+        this.elements.resultTable,
+        'Área bajo la curva',
+        result.area.toFixed(6)
+    );
+    this.addResultRow(
+        this.elements.resultTable,
+        'Error estimado',
+        result.error.toFixed(6)
+    );
+}
 
-            // Renderizar la gráfica inicial con datos y layout
-            Plotly.newPlot('plotHtmlContainer', plotData.data, plotData.layout).then(() => {
-                if (plotData.frames && plotData.frames.length > 0) {
-                    // Añadir los frames a la gráfica
-                    Plotly.addFrames('plotHtmlContainer', plotData.frames);
+renderPlot(plotJson) {
+    try {
+        const plotData = JSON.parse(plotJson);
 
-                    // Opcional: Iniciar la animación automáticamente
-                    Plotly.animate('plotHtmlContainer', {
-                        transition: {
-                            duration: 700,  // Ajusta la duración según prefieras
-                            easing: 'linear'
-                        },
-                        frame: {
-                            duration: 700,
-                            redraw: false
-                        }
-                    });
-                }
-            }).catch(error => {
-                console.error('Error al renderizar la gráfica:', error);
-                this.showError('No se pudo renderizar la gráfica correctamente.');
-            });
-        } catch (error) {
-            console.error('Error al parsear plot_json:', error);
-            this.showError('Error al procesar los datos de la gráfica.');
-        }
+        // Renderizar la gráfica inicial con datos y layout
+        Plotly.newPlot('plotHtmlContainer', plotData.data, plotData.layout).then(() => {
+            if (plotData.frames && plotData.frames.length > 0) {
+                // Añadir los frames a la gráfica
+                Plotly.addFrames('plotHtmlContainer', plotData.frames);
+
+                // Opcional: Iniciar la animación automáticamente
+                Plotly.animate('plotHtmlContainer', {
+                    transition: {
+                        duration: 700,  // Ajusta la duración según prefieras
+                        easing: 'linear'
+                    },
+                    frame: {
+                        duration: 700,
+                        redraw: false
+                    }
+                });
+            }
+        }).catch(error => {
+            console.error('Error al renderizar la gráfica:', error);
+            this.showError('No se pudo renderizar la gráfica correctamente.');
+        });
+    } catch (error) {
+        console.error('Error al parsear plot_json:', error);
+        this.showError('Error al procesar los datos de la gráfica.');
     }
+}
+
 
     handleError(error) {
         console.error('Error en la aplicación:', error);
@@ -760,99 +810,127 @@ class CalculatorApp {
     async validateAndPrepareFormData() {
         const method = this.elements.methodSelect.value;
         const iterations = parseInt(this.elements.form.iterations.value, 10);
-
+    
         if (!method) {
             throw new Error('Debe seleccionar un método numérico');
         }
         if (isNaN(iterations) || iterations < 1 || iterations > 1000) {
             throw new Error('El número de iteraciones debe estar entre 1 y 1000');
         }
-
+    
         let formData = { method, iterations };
-
+    
         if (['jacobi', 'gauss_seidel'].includes(method)) {
             // Obtener ecuaciones y variables
             const equations = Array.from(this.elements.form.querySelectorAll('input[name="equations[]"]')).map(input => input.value.trim());
             const variables = Array.from(this.elements.form.querySelectorAll('input[name="variables[]"]')).map(input => input.value.trim());
-
+    
             if (!equations.length || !variables.length) {
                 throw new Error('Debe ingresar al menos una ecuación y una variable.');
             }
             if (equations.length !== variables.length) {
                 throw new Error('El número de ecuaciones debe ser igual al número de variables.');
             }
-
+    
             // Validar que las variables no estén vacías y cumplan el patrón
             for (const variable of variables) {
                 if (!variable || !/^[a-zA-Z]+$/.test(variable)) {
                     throw new Error('Cada variable debe contener letras válidas.');
                 }
             }
-
+    
             formData.equations = equations;
             formData.variables = variables;
-
+    
             // Validar el punto inicial
             const initial_guess_str = this.elements.initialGuessSystem.querySelector('input').value.trim();
             if (!initial_guess_str) {
                 throw new Error('El punto inicial es requerido para métodos de sistemas.');
             }
-
+    
             const initial_guess = initial_guess_str.split(',').map(val => parseFloat(val.trim()));
             if (initial_guess.length !== variables.length) {
                 throw new Error('El punto inicial debe tener el mismo número de elementos que variables.');
             }
-
+    
             formData.initial_guess = initial_guess;
-        } else {
+        }
+        else if (['trapezoidal', 'simpson'].includes(method)) {
+            // Métodos de Integración Definida
+            const equation = this.elements.equationHidden.value.trim();
+            const a = parseFloat(this.elements.integrationInputs.querySelector('#a_integration').value);
+            const b = parseFloat(this.elements.integrationInputs.querySelector('#b_integration').value);
+            const n = parseInt(this.elements.integrationInputs.querySelector('#n_integration').value, 10);
+    
+            console.log(`Ecuación: ${equation}, a: ${a}, b: ${b}, n: ${n}`);
+    
+            if (!equation) {
+                throw new Error('La ecuación es requerida para métodos de integración.');
+            }
+            if (isNaN(a) || isNaN(b)) {
+                throw new Error('Los límites del intervalo deben ser números válidos.');
+            }
+            if (a >= b) {
+                throw new Error('El límite inferior (a) debe ser menor que el superior (b).');
+            }
+            if (isNaN(n) || n < 1) {
+                throw new Error('El número de subintervalos (n) debe ser un entero positivo.');
+            }
+    
+            formData.equation = equation; // Mantén la ecuación original
+            formData.a = a;
+            formData.b = b;
+            formData.n = n;
+        }
+        else {
             // Métodos para una sola ecuación
             const equation = this.elements.equationHidden.value.trim();
             const method = this.elements.methodSelect.value;
-
+    
             if (!equation) {
                 throw new Error('La ecuación es requerida');
             }
-
+    
             formData.equation = equation;
-
+    
             if (method === 'bisection') {
                 // Validar los límites del intervalo para Bisección
-                const a = parseFloat(this.elements.form.a.value);
-                const b = parseFloat(this.elements.form.b.value);
-
+                const a = parseFloat(this.elements.intervalInputs.querySelector('#a_bisection').value);
+                const b = parseFloat(this.elements.intervalInputs.querySelector('#b_bisection').value);
+    
                 if (isNaN(a) || isNaN(b)) {
                     throw new Error('Los límites del intervalo deben ser números válidos');
                 }
                 if (a >= b) {
                     throw new Error('El límite inferior (a) debe ser menor que el superior (b)');
                 }
-
+    
                 formData.a = a;
                 formData.b = b;
             } else if (method === 'secant') {
                 // Validar las estimaciones iniciales para Secante
                 const x0 = parseFloat(this.elements.form.x0.value);
                 const x1 = parseFloat(this.elements.form.x1.value);
-
+    
                 if (isNaN(x0) || isNaN(x1)) {
                     throw new Error('Las estimaciones iniciales x₀ y x₁ deben ser números válidos');
                 }
                 if (x0 === x1) {
                     throw new Error('Las estimaciones iniciales x₀ y x₁ deben ser distintas');
                 }
-
+    
                 formData.x0 = x0;
                 formData.x1 = x1;
             } else if (method === 'newton' || method === 'fixed_point') {
                 // Validar punto inicial para Newton-Raphson y Punto Fijo
-                const initial_guess = parseFloat(this.elements.form.initial_guess.value);
-
+                const initial_guess = parseFloat(this.elements.initialGuessInput.querySelector('input').value);
+    
                 if (isNaN(initial_guess)) {
                     throw new Error('El punto inicial debe ser un número válido');
                 }
-
+    
                 formData.initial_guess = initial_guess;
-
+    
                 if (method === 'fixed_point') {
                     const gFunction = this.elements.gFunctionHidden.value.trim();
                     if (!gFunction) {
@@ -860,13 +938,14 @@ class CalculatorApp {
                     }
                     formData.gFunction = gFunction;
                 }
-
             }
         }
-
+    
         return formData;
     }
-
+    
+    
+    
     replaceFractions(eq) {
         /**
          * Reemplaza todas las instancias de \frac{a}{b} por (a)/(b).
@@ -909,15 +988,15 @@ class CalculatorApp {
     latexToJavaScript(latex) {
         let processedLatex = latex;
         console.log("Original LaTeX:", processedLatex);
-
+    
         // 1. Reemplazar \frac{a}{b} por (a)/(b)
         processedLatex = this.replaceFractions(processedLatex);
         console.log("Después de reemplazar fracciones:", processedLatex);
-
+    
         // 2. Reemplazar \sqrt{...} por sqrt(...)
         processedLatex = processedLatex.replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)');
         console.log("Después de reemplazar '\\sqrt{...}':", processedLatex);
-
+    
         // 3. Reemplazar otros comandos de LaTeX
         processedLatex = processedLatex.replace(/\\left|\\right/g, '');
         processedLatex = processedLatex.replace(/\\cdot|\\times/g, '*');
@@ -930,30 +1009,35 @@ class CalculatorApp {
         processedLatex = processedLatex.replace(/\\cos/g, 'cos');
         processedLatex = processedLatex.replace(/\\tan/g, 'tan');
         console.log("Después de reemplazar otros comandos de LaTeX:", processedLatex);
-
-        // 4. Reemplazar '{' y '}' por '(' y ')'
-        processedLatex = processedLatex.replace(/{/g, '(').replace(/}/g, ')');
-        console.log("Después de reemplazar '{' y '}' por '()':", processedLatex);
-
-        // 5. Insertar explícitamente '*' entre dígitos y letras o '(' con manejo de espacios
+    
+        // 4. **Eliminar el reemplazo de integrales en el frontend**
+        // processedLatex = replace_integrals(eq)
+        // console.log(`Ecuación después de reemplazar integrales: ${eq}`);
+    
+        // 5. **Eliminar el reemplazo de '{' y '}' por '(' y ')'**
+        // processedLatex = processedLatex.replace(/{/g, '(').replace(/}/g, ')')
+        // console.log("Después de reemplazar '{' y '}' por '()':", processedLatex);
+    
+        // 6. Insertar explícitamente '*' entre dígitos y letras o ')' con manejo de espacios
         processedLatex = processedLatex.replace(/(\d)\s*([a-zA-Z(])/g, '$1*$2');
         processedLatex = processedLatex.replace(/(\))\s*([a-zA-Z(])/g, '$1*$2');
         console.log("Después de insertar '*':", processedLatex);
-
-        // 6. Reemplazar '^' por '**' para exponentiación
-        processedLatex = processedLatex.replace(/\^/g, '**');
-        console.log("Después de reemplazar '^' por '**':", processedLatex);
-
+    
+        // 7. **Eliminar el reemplazo de '^' por '**'**
+        // processedLatex = processedLatex.replace(/\^/g, '**')
+        // console.log("Después de reemplazar '^' por '**':", processedLatex);
+    
         // Validar paréntesis balanceados
         const openParens = (processedLatex.match(/\(/g) || []).length;
         const closeParens = (processedLatex.match(/\)/g) || []).length;
         if (openParens !== closeParens) {
             throw new Error("La ecuación contiene paréntesis desbalanceados.");
         }
-
+    
         console.log("Ecuación preprocesada para enviar:", processedLatex);
         return processedLatex;
     }
+    
 
     gFunctionToJavaScript(gFunc) {
         let processedGFunc = gFunc;

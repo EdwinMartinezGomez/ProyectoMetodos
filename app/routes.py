@@ -7,7 +7,18 @@ import json
 import sympy as sp
 import re
 import logging
+from sympy.parsing.sympy_parser import (
+    parse_expr,
+    standard_transformations,
+    implicit_multiplication_application,
+    convert_xor  # Importar convert_xor
+)
 
+transformations = (
+    standard_transformations +
+    (implicit_multiplication_application,) +
+    (convert_xor,)  # Agregar convert_xor
+)
 main = Blueprint('main', __name__)
 
 # Configuración del logger
@@ -17,6 +28,25 @@ logging.basicConfig(level=logging.INFO)
 @main.route('/')
 def index():
     return render_template('calculator.html')
+def replace_integrals(eq):
+    """
+    Reemplaza expresiones de integrales definidas en LaTeX por la sintaxis de SymPy.
+    Por ejemplo, \int_{a}^{b} f(x) dx -> Integral(f(x), (x, a, b))
+    """
+    # Patrón para detectar \int_{a}^{b} f(x) dx
+    integral_pattern = r'\\int_\{([^}]+)\}\^{([^}]+)\}\s*([^\\]+?)\s*dx'
+    
+    # Función de reemplazo
+    def integral_replacer(match):
+        lower_limit = match.group(1).strip()
+        upper_limit = match.group(2).strip()
+        integrand = match.group(3).strip()
+        return f'Integral({integrand}, (x, {lower_limit}, {upper_limit}))'
+    
+    # Reemplazar todas las integrales encontradas
+    eq = re.sub(integral_pattern, integral_replacer, eq)
+    
+    return eq
 
 def replace_fractions(eq):
     """
@@ -74,10 +104,9 @@ def replace_fractions(eq):
         logger.info(f"Reemplazado '{frac_full}' por '{frac_replacement}'.")
 
     return eq
-
 def preprocess_equation(equation):
     """
-    Preprocesa la ecuación para manejar notación LaTeX, inserción de '*', reemplazo de '^' por '**', y reemplazo de \frac.
+    Preprocesa la ecuación para manejar notación LaTeX, inserción de '*', reemplazo de '^' por '**', y reemplazo de \frac y \int.
     """
     eq = equation.strip()
     logger.info(f"Ecuación original: {eq}")
@@ -103,16 +132,20 @@ def preprocess_equation(equation):
     eq = re.sub(r'\\tan', 'tan', eq)
     logger.info(f"Ecuación después de reemplazar otros comandos de LaTeX: {eq}")
 
-    # 4. Reemplazar '{' y '}' por '(' y ')'
+    # 4. Reemplazar integrales
+    eq = replace_integrals(eq)
+    logger.info(f"Ecuación después de reemplazar integrales: {eq}")
+
+    # 5. Reemplazar '{' y '}' por '(' y ')'
     eq = eq.replace('{', '(').replace('}', ')')
     logger.info(f"Ecuación después de reemplazar '{{}}' por '()': {eq}")
 
-    # 5. Insertar explícitamente '*' entre dígitos y letras o '(' con manejo de espacios
+    # 6. Insertar explícitamente '*' entre dígitos y letras o '(' con manejo de espacios
     eq = re.sub(r'(\d)\s*([a-zA-Z(])', r'\1*\2', eq)
     eq = re.sub(r'(\))\s*([a-zA-Z(])', r'\1*\2', eq)
     logger.info(f"Ecuación después de insertar '*': {eq}")
 
-    # 6. Reemplazar '^' por '**' para exponentiación
+    # 7. Reemplazar '^' por '**' para exponentiación
     eq = eq.replace('^', '**')
     logger.info(f"Ecuación después de reemplazar '^' por '**': {eq}")
 
@@ -150,9 +183,11 @@ def parse_equation(equation_str):
             'cos': sp.cos,
             'tan': sp.tan,
             'log': sp.log,
+            'log10': sp.log,  # Asegurar que log10 sea manejado adecuadamente
             'sqrt': sp.sqrt,
             'abs': sp.Abs,
-            'pi': sp.pi
+            'pi': sp.pi,
+            'Integral': sp.Integral  # Permitir Integral
         }
 
         transformations = (standard_transformations + (implicit_multiplication_application,))
@@ -441,71 +476,25 @@ def gauss_seidel_method(A, b, x0, max_iter, tol=1e-6, iteration_history=None):
             break
 
     return x.tolist(), converged, i
-def trapezoidal_rule(f, a, b, n):
-    """
-    Implementa la regla del Trapecio para integración numérica.
 
-    Parámetros:
-    - f: función a integrar
-    - a: límite inferior de integración
-    - b: límite superior de integración
-    - n: número de subintervalos
-
-    Retorna:
-    - aproximación de la integral
-    - historial de iteraciones
-    """
+def trapezoidal_method(f, a, b, n):
     h = (b - a) / n
-    s = 0.5 * (f(a) + f(b))
-    iteration_history = []
+    x = np.linspace(a, b, n + 1)
+    y = f(x)
+    area = (h / 2) * np.sum(y[:-1] + y[1:])
+    # Error estimado puede depender de la segunda derivada, pero para simplicidad lo omitimos
+    # o podrías calcularlo si tienes la función analítica
+    return area, None  # Retornamos None para el error ya que no lo calculamos aquí
 
-    for i in range(1, n):
-        x_i = a + i * h
-        fx_i = f(x_i)
-        s += fx_i
-        iteration_history.append({
-            'i': i,
-            'x_i': round(float(x_i), 6),
-            'f(x_i)': round(float(fx_i), 6)
-        })
-
-    integral = h * s
-    return integral, iteration_history
-
-def simpsons_rule(f, a, b, n):
-    """
-    Implementa la regla de Simpson para integración numérica.
-
-    Parámetros:
-    - f: función a integrar
-    - a: límite inferior de integración
-    - b: límite superior de integración
-    - n: número de subintervalos (debe ser par)
-
-    Retorna:
-    - aproximación de la integral
-    - historial de iteraciones
-    """
-    if n % 2:
-        raise ValueError("El número de subintervalos n debe ser par para el método de Simpson.")
+def simpson_method(f, a, b, n):
+    if n % 2 != 0:
+        raise ValueError("El número de subintervalos (n) debe ser par para el método de Simpson.")
     h = (b - a) / n
-    s = f(a) + f(b)
-    iteration_history = []
-
-    for i in range(1, n):
-        x_i = a + i * h
-        fx_i = f(x_i)
-        coeficiente = 4 if i % 2 else 2
-        s += coeficiente * fx_i
-        iteration_history.append({
-            'i': i,
-            'x_i': round(float(x_i), 6),
-            'f(x_i)': round(float(fx_i), 6),
-            'coeficiente': coeficiente
-        })
-
-    integral = (h / 3) * s
-    return integral, iteration_history
+    x = np.linspace(a, b, n + 1)
+    y = f(x)
+    area = (h / 3) * (y[0] + 4 * np.sum(y[1:n:2]) + 2 * np.sum(y[2:n-1:2]) + y[n])
+    # Error estimado puede depender de la cuarta derivada, pero para simplicidad lo omitimos
+    return area, None  # Retornamos None para el error ya que no lo calculamos aquí
 
 def parse_system(equations, variables):
     """
@@ -545,6 +534,7 @@ def parse_system(equations, variables):
     logger.info(f"Vector b: {b_vector}")
     return A, b_vector
 
+
 @main.route('/calculate', methods=['POST'])
 def calculate():
     try:
@@ -572,7 +562,7 @@ def calculate():
             logger.error('El número de iteraciones debe ser entre 1 y 1000.')
             return jsonify({'error': 'El número de iteraciones debe ser entre 1 y 1000.'}), 400
 
-        if method not in ['bisection', 'newton', 'secant', 'fixed_point', 'jacobi', 'gauss_seidel']:
+        if method not in ['bisection', 'newton', 'secant', 'fixed_point', 'jacobi', 'gauss_seidel', 'trapezoidal', 'simpson']:
             logger.error('Método no válido.')
             return jsonify({'error': 'Método no válido.'}), 400
 
@@ -617,6 +607,94 @@ def calculate():
             except ValueError:
                 logger.error('Todos los elementos de initial_guess deben ser números.')
                 return jsonify({'error': 'Todos los elementos de initial_guess deben ser números.'}), 400
+        elif method in ['trapezoidal', 'simpson']:
+            # Métodos de Integración Definida
+            if 'equation' not in data or 'a' not in data or 'b' not in data or 'n' not in data:
+                logger.error('Faltan los campos: equation, a, b y/o n para el método de integración.')
+                return jsonify({'error': 'Faltan los campos: equation, a, b y/o n para el método de integración.'}), 400
+
+            equation = data['equation']
+            a = data['a']
+            b = data['b']
+            n = data['n']
+
+            try:
+                f = parse_equation(equation)
+            except ValueError as ve:
+                logger.error(str(ve))
+                return jsonify({'error': str(ve)}), 400
+
+            if method == 'simpson' and n % 2 != 0:
+                logger.error('El número de subintervalos (n) debe ser par para el método de Simpson.')
+                return jsonify({'error': 'El número de subintervalos (n) debe ser par para el método de Simpson.'}), 400
+
+            # Calcular la integral
+            try:
+                if method == 'trapezoidal':
+                    area, error = trapezoidal_method(f, a, b, n)
+                elif method == 'simpson':
+                    area, error = simpson_method(f, a, b, n)
+            except Exception as e:
+                logger.error(f"Error al calcular la integral: {str(e)}")
+                return jsonify({'error': f"Error al calcular la integral: {str(e)}"}), 400
+
+            # Preparar la gráfica
+            try:
+                x_vals = np.linspace(a, b, 1000)
+                y_vals = f(x_vals)
+
+                function_trace = go.Scatter(
+                    x=x_vals,
+                    y=y_vals,
+                    mode='lines',
+                    name='f(x)',
+                    line=dict(color='blue'),
+                    hoverinfo='none'
+                )
+
+                data_traces = [function_trace]
+
+                # Para el método trapezoidal, dibujar los trapecios
+                trapezoids = []
+                if method == 'trapezoidal':
+                    xi = np.linspace(a, b, n + 1)
+                    yi = f(xi)
+                    for i in range(n):
+                        trapezoid_trace = go.Scatter(
+                            x=[xi[i], xi[i+1], xi[i+1], xi[i], xi[i]],
+                            y=[0, 0, yi[i+1], yi[i], 0],
+                            fill='toself',
+                            fillcolor='rgba(255, 165, 0, 0.3)',
+                            line=dict(color='rgba(255, 165, 0, 0)'),
+                            showlegend=False,
+                            hoverinfo='none'
+                        )
+                        data_traces.append(trapezoid_trace)
+
+                layout = go.Layout(
+                    title='Gráfica de la Integral Definida',
+                    xaxis=dict(title='x'),
+                    yaxis=dict(title='f(x)'),
+                    plot_bgcolor='#f0f0f0',
+                    paper_bgcolor='#ffffff',
+                    hovermode='closest'
+                )
+
+                fig = go.Figure(data=data_traces, layout=layout)
+                graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+                response = {
+                    'area': area,
+                    'error': error if error else 0.0,
+                    'plot_json': graphJSON
+                }
+
+                if method == 'trapezoidal':
+                    response['trapezoids'] = trapezoids
+
+            except Exception as e:
+                logger.error(f"Error al generar la gráfica para la integral: {str(e)}")
+                return jsonify({'error': f"Error al generar la gráfica para la integral: {str(e)}"}), 400
 
         else:
             # Métodos para una sola ecuación
@@ -729,39 +807,182 @@ def calculate():
 
             # Generar gráfica para sistemas de ecuaciones
             try:
-                # Extraer nombres de variables y sus valores en cada iteración
+                # Función mejorada para crear layouts
+                def create_enhanced_layout(title, x_label='x', y_label='f(x)'):
+                    return go.Layout(
+                        title=dict(
+                            text=title,
+                            x=0.5,
+                            xanchor='center',
+                            font=dict(
+                                size=24,
+                                family='Arial, sans-serif',
+                                color='#2c3e50'
+                            )
+                        ),
+                        xaxis=dict(
+                            title=dict(
+                                text=x_label,
+                                font=dict(size=16, family='Arial, sans-serif')
+                            ),
+                            gridcolor='#e0e0e0',
+                            zerolinecolor='#2c3e50',
+                            zerolinewidth=2
+                        ),
+                        yaxis=dict(
+                            title=dict(
+                                text=y_label,
+                                font=dict(size=16, family='Arial, sans-serif')
+                            ),
+                            gridcolor='#e0e0e0',
+                            zerolinecolor='#2c3e50',
+                            zerolinewidth=2
+                        ),
+                        plot_bgcolor='#ffffff',
+                        paper_bgcolor='#ffffff',
+                        hovermode='closest',
+                        showlegend=True,
+                        legend=dict(
+                            x=1.05,
+                            y=1,
+                            bgcolor='rgba(255, 255, 255, 0.9)',
+                            bordercolor='#2c3e50'
+                        ),
+                        margin=dict(l=80, r=80, t=100, b=80)
+                    )
+
                 variables = data['variables']
-                iterations_numbers = [entry['iteration'] for entry in iteration_history]
+                iterations_numbers = list(range(1, len(iteration_history) + 1))
                 plot_traces = []
+
+                # Paleta de colores mejorada
+                colors = ['#2ecc71', '#3498db', '#9b59b6', '#e74c3c', '#f1c40f', '#1abc9c']
 
                 for var_idx, var in enumerate(variables):
                     var_values = [entry['x'][var_idx] for entry in iteration_history]
+
+                    # Trace principal con línea y marcadores
                     trace = go.Scatter(
                         x=iterations_numbers,
                         y=var_values,
                         mode='lines+markers',
-                        name=var
+                        name=var,
+                        line=dict(
+                            color=colors[var_idx % len(colors)],
+                            width=3,
+                            dash='solid'
+                        ),
+                        marker=dict(
+                            size=8,
+                            symbol='circle',
+                            line=dict(width=2, color='white')
+                        ),
+                        hovertemplate=f"{var}: %{{y:.6f}}<br>Iteración: %{{x}}<extra></extra>"
                     )
                     plot_traces.append(trace)
 
-                layout = go.Layout(
-                    title='Convergencia de Variables por Iteración',
-                    xaxis=dict(title='Iteración'),
-                    yaxis=dict(title='Valor de la Variable'),
-                    plot_bgcolor='#f0f0f0',
-                    paper_bgcolor='#ffffff',
-                    hovermode='closest'
+                    # Trace de tendencia
+                    trace_trend = go.Scatter(
+                        x=iterations_numbers,
+                        y=var_values,
+                        mode='lines',
+                        name=f'{var} (tendencia)',
+                        line=dict(
+                            color=colors[var_idx % len(colors)],
+                            width=1,
+                            dash='dot'
+                        ),
+                        opacity=0.3,
+                        showlegend=False
+                    )
+                    plot_traces.append(trace_trend)
+
+                layout = create_enhanced_layout(
+                    'Convergencia de Variables por Iteración',
+                    'Iteración',
+                    'Valor de la Variable'
                 )
 
-                fig = go.Figure(data=plot_traces, layout=layout)
-                graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+                # Agregar animación de aparición gradual
+                frames = []
+                for i in range(1, len(iterations_numbers) + 1):
+                    frame_data = []
+                    for var_idx in range(len(variables)):
+                        var_values = [entry['x'][var_idx] for entry in iteration_history[:i]]
+                        frame_data.append(
+                            go.Scatter(
+                                x=iterations_numbers[:i],
+                                y=var_values,
+                                mode='lines+markers',
+                                name=variables[var_idx],
+                                line=dict(
+                                    color=colors[var_idx % len(colors)],
+                                    width=3,
+                                    dash='solid'
+                                ),
+                                marker=dict(
+                                    size=8,
+                                    symbol='circle',
+                                    line=dict(width=2, color='white')
+                                ),
+                                hovertemplate=f"{variables[var_idx]}: %{{y:.6f}}<br>Iteración: %{{x}}<extra></extra>"
+                            )
+                        )
+                        # Agregar trace de tendencia en cada frame
+                        frame_data.append(
+                            go.Scatter(
+                                x=iterations_numbers[:i],
+                                y=var_values,
+                                mode='lines',
+                                name=f'{variables[var_idx]} (tendencia)',
+                                line=dict(
+                                    color=colors[var_idx % len(colors)],
+                                    width=1,
+                                    dash='dot'
+                                ),
+                                opacity=0.3,
+                                showlegend=False
+                            )
+                        )
+                    frames.append(go.Frame(data=frame_data, name=f'frame{i}'))
+
+                # Agregar controles de animación
+                layout.update(
+                    updatemenus=[{
+                        "buttons": [
+                            {
+                                "args": [None, {"frame": {"duration": 500, "redraw": True},
+                                                "fromcurrent": True}],
+                                "label": "▶ Play",
+                                "method": "animate"
+                            },
+                            {
+                                "args": [[None], {"frame": {"duration": 0, "redraw": False},
+                                                  "mode": "immediate",
+                                                  "transition": {"duration": 0}}],
+                                "label": "⏸ Pause",
+                                "method": "animate"
+                            }
+                        ],
+                        "direction": "left",
+                        "pad": {"r": 10, "t": 10},
+                        "showactive": False,
+                        "type": "buttons",
+                        "x": 0.1,
+                        "y": 1.1,
+                        "xanchor": "right",
+                        "yanchor": "top"
+                    }]
+                )
+
+                fig = go.Figure(data=plot_traces, layout=layout, frames=frames)
 
                 response = {
                     'solution': {var: round(float(root[i]), 6) for i, var in enumerate(variables)},
                     'converged': converged,
                     'iterations': iterations,
                     'iteration_history': iteration_history,
-                    'plot_json': graphJSON
+                    'plot_json': json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
                 }
 
             except Exception as e:
@@ -810,6 +1031,46 @@ def calculate():
 
             # Preparar la gráfica para una sola ecuación
             try:
+                # Función mejorada para crear layouts
+                def create_enhanced_layout(title, x_label='x', y_label='f(x)'):
+                    return go.Layout(
+                        title=dict(
+                            text=title,
+                            x=0.5,
+                            xanchor='center',
+                            font=dict(size=24, family='Arial, sans-serif', color='#2c3e50')
+                        ),
+                        xaxis=dict(
+                            title=dict(
+                                text=x_label,
+                                font=dict(size=16, family='Arial, sans-serif')
+                            ),
+                            gridcolor='#e0e0e0',
+                            zerolinecolor='#2c3e50',
+                            zerolinewidth=2
+                        ),
+                        yaxis=dict(
+                            title=dict(
+                                text=y_label,
+                                font=dict(size=16, family='Arial, sans-serif')
+                            ),
+                            gridcolor='#e0e0e0',
+                            zerolinecolor='#2c3e50',
+                            zerolinewidth=2
+                        ),
+                        plot_bgcolor='#ffffff',
+                        paper_bgcolor='#ffffff',
+                        hovermode='closest',
+                        showlegend=True,
+                        legend=dict(
+                            x=1.05,
+                            y=1,
+                            bgcolor='rgba(255, 255, 255, 0.9)',
+                            bordercolor='#2c3e50'
+                        ),
+                        margin=dict(l=80, r=80, t=100, b=80)
+                    )
+
                 # Definir el rango de la gráfica
                 plot_a, plot_b = -10, 10  # Valores por defecto, pueden ser ajustados
                 if method == 'bisection':
@@ -945,65 +1206,68 @@ def calculate():
                     data_traces.extend([x0_trace, x1_trace])
 
                 # Definir el layout de la gráfica con animación
-                layout = go.Layout(
-                    title=dict(
-                        text='Gráfica de la Ecuación con Proceso de Iteración',
-                        x=0.5,
-                        xanchor='center',
-                        font=dict(size=24)
-                    ),
-                    xaxis=dict(title='x', range=[plot_a, plot_b]),
-                    yaxis=dict(title='f(x)', range=[min(y_vals) - 10, max(y_vals) + 10]),
-                    plot_bgcolor='#f0f0f0',
-                    paper_bgcolor='#ffffff',
-                    hovermode='closest',
-                    updatemenus=[
-                        {
-                            "buttons": [
-                                {
-                                    "args": [None, {"frame": {"duration": 700, "redraw": True},
-                                                    "fromcurrent": True}],
-                                    "label": "Play",
-                                    "method": "animate"
-                                },
-                                {
-                                    "args": [[None], {"frame": {"duration": 0, "redraw": False},
-                                                      "mode": "immediate",
-                                                      "transition": {"duration": 0}}],
-                                    "label": "Pause",
-                                    "method": "animate"
-                                }
-                            ],
-                            "direction": "left",
-                            "pad": {"r": 10, "t": 87},
-                            "showactive": False,
-                            "type": "buttons",
-                            "x": 0.1,
-                            "xanchor": "right",
-                            "y": 0,
-                            "yanchor": "top"
-                        }
-                    ],
-                    sliders=[
-                        {
-                            "steps": [
-                                {
-                                    "args": [
-                                        [str(k)],
-                                        {"frame": {"duration": 700, "redraw": True},
-                                         "mode": "immediate"}
-                                    ],
-                                    "label": f"Iteración {k + 1}",
-                                    "method": "animate"
-                                } for k in range(len(frames))
-                            ],
-                            "transition": {"duration": 0},
-                            "x": 0.1,
-                            "y": 0,
-                            "currentvalue": {"font": {"size": 16}, "prefix": "Iteración: ", "visible": True, "xanchor": "right"},
-                            "len": 0.9
-                        }
-                    ]
+                layout = create_enhanced_layout('Visualización del Método Numérico')
+
+                # Agregar controles de animación mejorados
+                layout.update(
+                    updatemenus=[{
+                        "buttons": [
+                            {
+                                "args": [None, {
+                                    "frame": {"duration": 700, "redraw": True},
+                                    "fromcurrent": True,
+                                    "transition": {"duration": 300, "easing": "cubic-in-out"}
+                                }],
+                                "label": "▶ Play",
+                                "method": "animate"
+                            },
+                            {
+                                "args": [[None], {
+                                    "frame": {"duration": 0, "redraw": False},
+                                    "mode": "immediate",
+                                    "transition": {"duration": 0}
+                                }],
+                                "label": "⏸ Pause",
+                                "method": "animate"
+                            }
+                        ],
+                        "direction": "left",
+                        "pad": {"r": 10, "t": 10},
+                        "showactive": False,
+                        "type": "buttons",
+                        "x": 0.1,
+                        "y": 1.1,
+                        "xanchor": "right",
+                        "yanchor": "top"
+                    }],
+                    sliders=[{
+                        "active": 0,
+                        "yanchor": "top",
+                        "xanchor": "left",
+                        "currentvalue": {
+                            "font": {"size": 16},
+                            "prefix": "Iteración: ",
+                            "visible": True,
+                            "xanchor": "right"
+                        },
+                        "transition": {"duration": 300, "easing": "cubic-in-out"},
+                        "pad": {"b": 10, "t": 50},
+                        "len": 0.9,
+                        "x": 0.1,
+                        "y": 0,
+                        "steps": [
+                            {
+                                "args": [
+                                    [str(k)],
+                                    {"frame": {"duration": 700, "redraw": True},
+                                     "mode": "immediate",
+                                     "transition": {"duration": 300}}
+                                ],
+                                "label": f"Iteración {k + 1}",
+                                "method": "animate"
+                            } for k in range(len(frames))
+                        ]
+                    }]
                 )
 
                 fig = go.Figure(data=data_traces, layout=layout, frames=frames)

@@ -54,7 +54,14 @@ class CalculatorApp {
             throw new Error(`Error inicializando elementos: ${error.message}`);
         }
     }
-    
+
+    validateParentheses(expression) {
+        const openParens = (expression.match(/\(/g) || []).length;
+        const closeParens = (expression.match(/\)/g) || []).length;
+        if (openParens !== closeParens) {
+            throw new Error('La ecuación contiene paréntesis desbalanceados.');
+        }
+    }
 
     initializeMathQuill() {
         try {
@@ -69,10 +76,10 @@ class CalculatorApp {
                 handlers: {
                     edit: () => {
                         try {
-                            const latex = mathInputField.latex();
+                            const latex = mathInputField.latex().trim(); // Eliminar espacios
                             this.elements.equationHidden.value = this.latexToJavaScript(latex);
                         } catch (error) {
-                            this.showError('Error al procesar la ecuación matemática');
+                            this.showError('Error en la ecuación: ' + error.message);
                             console.error('Error en MathQuill handler:', error);
                         }
                     },
@@ -118,7 +125,6 @@ class CalculatorApp {
             throw new Error(`Error inicializando MathQuill: ${error.message}`);
         }
     }
-
 
     // Método para agregar dinámicamente nuevos campos MathQuill (útil para sistemas de ecuaciones)
     addMathQuillField(elementId, fieldIdentifier) {
@@ -166,7 +172,6 @@ class CalculatorApp {
         return element;
     }
 
-   
     setupEventListeners() {
         try {
             this.elements.form.addEventListener('submit', this.handleFormSubmit.bind(this));
@@ -199,11 +204,33 @@ class CalculatorApp {
 
             // **Añadir el Event Listener para el Toggle del Teclado Virtual**
             this.elements.toggleKeyboardBtn.addEventListener('click', this.toggleKeyboard.bind(this));
+            // Dentro de setupEventListeners()
+            this.elements.equationsContainer.addEventListener('click', this.handleEquationRemoval.bind(this));
         } catch (error) {
             throw new Error(`Error configurando event listeners: ${error.message}`);
         }
     }
 
+    // Añadir la función handleEquationRemoval
+    handleEquationRemoval(event) {
+        if (event.target.classList.contains('removeEquationBtn') || event.target.closest('.removeEquationBtn')) {
+            const equationInputDiv = event.target.closest('.equation-input');
+            if (equationInputDiv) {
+                equationInputDiv.remove();
+                this.updateEquationLabels();
+            }
+        }
+    }
+
+    updateEquationLabels() {
+        const equations = this.elements.equationsContainer.querySelectorAll('.equation-input');
+        equations.forEach((eq, index) => {
+            const label = eq.querySelector('.input-group-text');
+            label.textContent = `Ecuación ${index + 1}:`;
+            const hiddenInput = eq.querySelector('input[type="hidden"]');
+            hiddenInput.id = `equation_${index + 1}`;
+        });
+    }
 
     /**
      * Método para alternar la visibilidad del teclado virtual.
@@ -214,7 +241,6 @@ class CalculatorApp {
         this.elements.toggleKeyboardBtn.setAttribute('aria-pressed', !isVisible);
         this.elements.toggleKeyboardBtn.setAttribute('aria-label', isVisible ? 'Mostrar Teclado Virtual' : 'Ocultar Teclado Virtual');
     }
-    
 
     validateInitialGuessSystem(event) {
         const input = event.target;
@@ -228,17 +254,17 @@ class CalculatorApp {
 
     handleMethodChange(event) {
         const selectedMethod = event.target.value;
-    
+
         // Reset 'required' for all fields
         this.elements.form.querySelectorAll('input').forEach(input => input.required = false);
-    
+
         // Mostrar/ocultar campos según el método seleccionado
         if (selectedMethod === 'bisection') {
             this.elements.intervalInputs.style.display = 'flex';
             this.elements.findIntervalBtn.style.display = 'block';
             this.elements.aBisection.required = true;
             this.elements.bBisection.required = true;
-    
+
             this.hideFields(['secantInputs', 'initialGuessInput', 'fixedPointInputs',
                 'systemInputs', 'equationsContainer', 'variablesContainer',
                 'initialGuessSystem', 'integrationInputs']);
@@ -248,7 +274,7 @@ class CalculatorApp {
         else if (selectedMethod === 'secant') {
             this.elements.secantInputs.style.display = 'flex';
             this.elements.secantInputs.querySelectorAll('input').forEach(input => input.required = true);
-    
+
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'initialGuessInput',
                 'fixedPointInputs', 'systemInputs', 'equationsContainer', 'variablesContainer',
                 'initialGuessSystem', 'integrationInputs']);
@@ -258,7 +284,7 @@ class CalculatorApp {
         else if (selectedMethod === 'newton') {
             this.elements.initialGuessInput.style.display = 'block';
             this.elements.initialGuessInput.querySelector('input').required = true;
-    
+
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'secantInputs',
                 'fixedPointInputs', 'systemInputs', 'equationsContainer', 'variablesContainer',
                 'initialGuessSystem', 'integrationInputs']);
@@ -269,7 +295,7 @@ class CalculatorApp {
             this.elements.initialGuessInput.style.display = 'block';
             this.elements.fixedPointInputs.style.display = 'block';
             this.elements.initialGuessInput.querySelector('input').required = true;
-    
+
             // Ocultar otros campos
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'secantInputs',
                 'systemInputs', 'equationsContainer', 'variablesContainer', 'initialGuessSystem',
@@ -277,18 +303,18 @@ class CalculatorApp {
             this.elements.singleEquationInput.style.display = 'block';
             this.disableFields(['a_bisection', 'b_bisection']);
         }
-        else if (selectedMethod === 'jacobi' || selectedMethod === 'gauss_seidel') {
+        else if (selectedMethod === 'jacobi' || selectedMethod === 'gauss_seidel' || selectedMethod === 'broyden') { // Añadido 'broyden'
             this.elements.systemInputs.style.display = 'block';
             this.elements.equationsContainer.style.display = 'block';
             this.elements.variablesContainer.style.display = 'block';
             this.elements.initialGuessSystem.style.display = 'block';
             this.elements.initialGuessSystem.querySelector('input').required = true;
-    
+
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'secantInputs',
                 'initialGuessInput', 'fixedPointInputs', 'singleEquationInput',
                 'integrationInputs']);
             this.disableFields(['a_bisection', 'b_bisection']);
-    
+
             // Agregar 'required' a todos los campos 'variables[]' dinámicamente
             const variableInputs = this.elements.variablesContainer.querySelectorAll('input[name="variables[]"]');
             variableInputs.forEach(input => input.required = true);
@@ -299,7 +325,7 @@ class CalculatorApp {
             this.elements.integrationInputs.querySelectorAll('input').forEach(input => {
                 input.required = true;
             });
-    
+
             this.hideFields(['intervalInputs', 'findIntervalBtn', 'secantInputs',
                 'initialGuessInput', 'fixedPointInputs', 'systemInputs',
                 'equationsContainer', 'variablesContainer', 'initialGuessSystem']);
@@ -314,18 +340,19 @@ class CalculatorApp {
             this.elements.singleEquationInput.style.display = 'block';
             this.disableFields(['a_bisection', 'b_bisection']);
         }
-    
+
         // Inicializar o limpiar MathQuill según el método seleccionado
         this.toggleMathQuill(selectedMethod);
-    
+
         // Actualizar ejemplo en MathQuill
         const examples = {
             'bisection': 'x**2 - 4',
             'newton': 'x**3 - 2*x - 5',
             'secant': '',
             'fixed_point': '',
-            'jacobi': 'Sistema de 2 ecuaciones',
-            'gauss_seidel': 'Sistema de 2 ecuaciones',
+            'jacobi': 'x + y - 3',
+            'gauss_seidel': 'x + y - 3',
+            'broyden': 'x**2 + y**2 - 4, x**2 - y - 1', // Ejemplo para Broyden
             'trapezoidal': 'x**2 - 4',
             'simpson': 'x**2 - 4'
         };
@@ -335,9 +362,7 @@ class CalculatorApp {
             this.activeMathField.latex('');
         }
     }
-    
-    
-    
+
     // Utility functions to show/hide fields and enable/disable inputs
     hideFields(fields) {
         fields.forEach(field => this.elements[field].style.display = 'none');
@@ -357,7 +382,7 @@ class CalculatorApp {
             const field = this.elements.form.querySelector(`#${id}`);
             if (field) {
                 field.disabled = true;
-                field.value = ''; // Optional: clear the value
+                field.value = ''; // Opcional: limpiar el valor
             }
         });
     }
@@ -393,11 +418,11 @@ class CalculatorApp {
                 });
 
             }
-        } else if (['jacobi', 'gauss_seidel'].includes(selectedMethod)) {
+        } else if (['jacobi', 'gauss_seidel', 'broyden'].includes(selectedMethod)) {
             if (this.mathField) {
-                this.mathField = null; // Destroy instance if exists
+                this.mathField = null; // Destruir instancia si existe
             }
-            this.elements.mathInput.innerHTML = ''; // Optionally clear content
+            this.elements.mathInput.innerHTML = ''; // Opcionalmente limpiar contenido
         }
     }
 
@@ -429,6 +454,7 @@ class CalculatorApp {
             <span class="input-group-text">Ecuación ${newEquationIndex}:</span>
             <div class="mathquill-field form-control" id="mathquill_equation_${newEquationIndex}"></div>
             <input type="hidden" name="equations[]" id="equation_${newEquationIndex}">
+            <button type="button" class="btn btn-danger removeEquationBtn">Eliminar</button>
         `;
         equationList.appendChild(equationDiv);
 
@@ -476,9 +502,9 @@ class CalculatorApp {
             const varDiv = document.createElement('div');
             varDiv.className = 'input-group mb-2';
             varDiv.innerHTML = `
-            <span class="input-group-text">Variable ${i}:</span>
-            <input type="text" class="form-control" name="variables[]" placeholder="Ingrese la variable ${i}" required pattern="[a-zA-Z]+">
-        `;
+                <span class="input-group-text">Variable ${i}:</span>
+                <input type="text" class="form-control" name="variables[]" placeholder="Ingrese la variable ${i}" required pattern="[a-zA-Z]+">
+            `;
             variablesList.appendChild(varDiv);
         }
 
@@ -492,6 +518,7 @@ class CalculatorApp {
                 <span class="input-group-text">Ecuación ${i}:</span>
                 <div class="mathquill-field form-control" id="mathquill_equation_${i}"></div>
                 <input type="hidden" name="equations[]" id="equation_${i}">
+                <button type="button" class="btn btn-danger removeEquationBtn">Eliminar</button>
             `;
             equationsList.appendChild(equationDiv);
 
@@ -536,19 +563,19 @@ class CalculatorApp {
 
     async handleFindInterval() {
         const equation = this.elements.equationHidden.value.trim();
-    
+
         if (!equation) {
             this.showError('La ecuación es requerida para encontrar el intervalo.');
             return;
         }
-    
+
         try {
             const response = await fetch('/find_valid_interval', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ equation }) // Solo envía 'equation'
             });
-    
+
             const data = await response.json();
             if (data.error) {
                 this.showError(data.error);
@@ -562,9 +589,6 @@ class CalculatorApp {
             console.error('Error en handleFindInterval:', error);
         }
     }
-    
-    
-    
 
     showSuccess(message) {
         const successDiv = document.createElement('div');
@@ -597,11 +621,11 @@ class CalculatorApp {
         event.preventDefault();
         this.clearErrors();
         this.showLoading();
-    
+
         try {
             const formData = await this.validateAndPrepareFormData();
             console.log("Datos de formulario validados:", formData);
-    
+
             const response = await this.sendCalculationRequest(formData);
             await this.handleCalculationResponse(response, formData.method);
         } catch (error) {
@@ -610,7 +634,6 @@ class CalculatorApp {
             this.hideLoading();
         }
     }
-    
 
     showLoading() {
         const loadingSpinner = document.createElement('div');
@@ -670,96 +693,350 @@ class CalculatorApp {
         }
     }
 
-    async handleCalculationResponse(response) {
+    async handleCalculationResponse(response, method) {
         if (response.error) {
             this.showError(response.error);
             return;
         }
 
         try {
-            if (response.solution) {
-                // Mostrar resultados para sistemas
-                this.displaySystemResults(response);
-            } else if (response.root) {
-                // Mostrar resultados para métodos de una sola ecuación
-                this.displayMainResults(response);
-            }else if (response.area !== undefined && response.error !== undefined) {
-                // Mostrar resultados para métodos de integración
-                this.displayIntegrationResults(response);
+          
+
+            // Verifica el método para mostrar los resultados adecuados
+            if (['trapezoidal', 'simpson'].includes(method)) {
+                // Métodos de integración
+                if (response.area !== undefined && response.estimatedError !== undefined) {
+                    this.displayIntegrationResults(response); // Muestra área y error estimado.
+                }
+
+                if (response.plot_json) {
+                    this.renderPlot(response.plot_json, method); // Renderiza la gráfica.
+                } else {
+                    console.warn('No se proporcionó plot_json en la respuesta.');
+                }
+            } else if (['jacobi', 'gauss_seidel', 'broyden'].includes(method)) {
+                // Métodos para sistemas de ecuaciones
+                if (response.solution) {
+                    this.displaySystemResults(response);
+                }
+
+                if (response.iteration_history) {
+                    this.displayIterationHistory(response.iteration_history, response.solution);
+                }
+
+                if (response.plot_json) {
+                    this.renderPlot(response.plot_json, method);
+                } else {
+                    console.warn('No se proporcionó plot_json en la respuesta para métodos de sistema.');
+                }
+            } else {
+                // Métodos para una sola ecuación
+                if (response.root !== undefined) {
+                    this.displayMainResults(response);
+                }
+
+                if (response.iteration_history) {
+                    this.displayIterationHistory(response.iteration_history, response.root);
+                }
+
+                if (response.plot_json) {
+                    this.renderPlot(response.plot_json, method);
+                } else {
+                    console.warn('No se proporcionó plot_json en la respuesta.');
+                }
             }
 
-           // Verificar y mostrar el historial de iteraciones si está presente
-        if (response.iteration_history) {
-            if (response.solution) {
-                // Método para sistemas de ecuaciones
-                this.displayIterationHistory(response.iteration_history, response.solution);
-            } else {
-                // Método para una sola ecuación
-                this.displayIterationHistory(response.iteration_history, response.root);
-            }
-        }
-
-        if (response.plot_json) {
-            if (method === 'trapezoidal') {
-                this.renderPlot(response.plot_json, method, response.trapezoids || []);
-            } else {
-                this.renderPlot(response.plot_json);
-            }
-        } else {
-            console.warn('No se proporcionó plot_json en la respuesta.');
-        }
+            this.elements.resultsDiv.style.display = 'block';
         } catch (error) {
             this.showError(`Error al mostrar resultados: ${error.message}`);
         }
-
-        this.elements.resultsDiv.style.display = 'block';
     }
 
-displayIntegrationResults(result) {
-    this.addResultRow(
-        this.elements.resultTable,
-        'Área bajo la curva',
-        result.area.toFixed(6)
-    );
-    this.addResultRow(
-        this.elements.resultTable,
-        'Error estimado',
-        result.error.toFixed(6)
-    );
-}
+    // Método para mostrar los resultados específicos de integración
+    displayIntegrationResults(result) {
+        this.addResultRow(
+            this.elements.resultTable,
+            'Área bajo la curva',
+            result.area.toFixed(6)
+        );
+        this.addResultRow(
+            this.elements.resultTable,
+            'Error estimado',
+            `<span class="text-danger">${result.estimatedError.toFixed(6)}</span>` // Mostrar el error estimado en rojo
+        );
+    }
 
-renderPlot(plotJson) {
-    try {
-        const plotData = JSON.parse(plotJson);
+    renderPlot(plotJson, method) {
+        try {
+            console.log("Datos de plotJson recibidos:", plotJson);
+            const plotData = JSON.parse(plotJson);
 
-        // Renderizar la gráfica inicial con datos y layout
-        Plotly.newPlot('plotHtmlContainer', plotData.data, plotData.layout).then(() => {
-            if (plotData.frames && plotData.frames.length > 0) {
-                // Añadir los frames a la gráfica
-                Plotly.addFrames('plotHtmlContainer', plotData.frames);
-
-                // Opcional: Iniciar la animación automáticamente
-                Plotly.animate('plotHtmlContainer', {
-                    transition: {
-                        duration: 700,  // Ajusta la duración según prefieras
-                        easing: 'linear'
-                    },
-                    frame: {
-                        duration: 700,
-                        redraw: false
-                    }
-                });
+            if (!plotData.data || !plotData.layout) {
+                throw new Error("plot_json no contiene los campos necesarios 'data' y 'layout'.");
             }
-        }).catch(error => {
-            console.error('Error al renderizar la gráfica:', error);
-            this.showError('No se pudo renderizar la gráfica correctamente.');
-        });
-    } catch (error) {
-        console.error('Error al parsear plot_json:', error);
-        this.showError('Error al procesar los datos de la gráfica.');
-    }
-}
 
+            // Añadir título específico según el método
+            plotData.layout.title = `Integración usando el Método ${method.charAt(0).toUpperCase() + method.slice(1)}`;
+
+            Plotly.newPlot(this.elements.plotHtmlContainer, plotData.data, plotData.layout).then(() => {
+                if (plotData.frames && plotData.frames.length > 0) {
+                    Plotly.addFrames(this.elements.plotHtmlContainer, plotData.frames);
+                    Plotly.animate(this.elements.plotHtmlContainer, {
+                        transition: {
+                            duration: 700,
+                            easing: 'linear'
+                        },
+                        frame: {
+                            duration: 700,
+                            redraw: false
+                        }
+                    });
+                }
+            }).catch(error => {
+                console.error('Error al renderizar la gráfica:', error);
+                this.showError('No se pudo renderizar la gráfica correctamente.');
+            });
+        } catch (error) {
+            console.error('Error al parsear plot_json:', error);
+            this.showError('Error al procesar los datos de la gráfica.');
+        }
+    }
+
+    displayResults(result) {
+        this.elements.resultTable.innerHTML = '';
+
+        if (result.solution) {
+            // Mostrar la solución
+            const solution = result.solution;
+            const table = document.createElement('table');
+            table.className = 'table table-bordered';
+
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            const varHeader = document.createElement('th');
+            varHeader.textContent = 'Variable';
+            const valHeader = document.createElement('th');
+            valHeader.textContent = 'Valor';
+            headerRow.appendChild(varHeader);
+            headerRow.appendChild(valHeader);
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+
+            for (const [varName, value] of Object.entries(solution)) {
+                const row = document.createElement('tr');
+                const varCell = document.createElement('td');
+                varCell.textContent = varName;
+                const valCell = document.createElement('td');
+                valCell.textContent = value.toFixed(6);
+                row.appendChild(varCell);
+                row.appendChild(valCell);
+                tbody.appendChild(row);
+            }
+
+            table.appendChild(tbody);
+            this.elements.resultTable.appendChild(table);
+        }
+
+        // Puedes agregar más detalles según lo necesites
+    }
+
+    displaySystemResults(result) {
+        const solution = result.solution;
+        const keys = Object.keys(solution);
+        const values = Object.values(solution);
+
+        // Mostrar si convergió
+        this.addResultRow(
+            this.elements.resultTable,
+            'Convergió',
+            result.converged ? 'Sí' : 'No'
+        );
+
+        // Mostrar número de iteraciones
+        this.addResultRow(
+            this.elements.resultTable,
+            'Iteraciones realizadas',
+            result.iterations
+        );
+
+        // Mostrar las soluciones
+        keys.forEach((varName, index) => {
+            this.addResultRow(
+                this.elements.resultTable,
+                `Solución para ${varName}`,
+                values[index].toFixed(6)
+            );
+        });
+    }
+
+    displayMainResults(result) {
+        this.addResultRow(
+            this.elements.resultTable,
+            'Convergió',
+            result.converged ? 'Sí' : 'No'
+        );
+
+        this.addResultRow(
+            this.elements.resultTable,
+            'Iteraciones realizadas',
+            result.iterations
+        );
+
+        this.addResultRow(
+            this.elements.resultTable,
+            'Raíz encontrada',
+            result.root.toFixed(6)
+        );
+    }
+
+    displayIterationHistory(history, solution = null) {
+        const iterationTable = this.createIterationTable(history, solution);
+        this.elements.resultTable.appendChild(iterationTable);
+    }
+
+    addResultRow(table, label, value) {
+        const row = document.createElement('tr');
+        const labelCell = document.createElement('td');
+        const valueCell = document.createElement('td');
+
+        labelCell.innerHTML = label;
+        valueCell.innerHTML = value;
+        labelCell.className = 'fw-bold';
+
+        row.appendChild(labelCell);
+        row.appendChild(valueCell);
+        table.appendChild(row);
+    }
+
+    createIterationTable(iterations, solution = null) {
+        const table = document.createElement('table');
+        table.className = 'table table-striped table-bordered mt-3';
+
+        let headers = ['Iteración'];
+        if (solution && typeof solution === 'object' && !Array.isArray(solution)) {
+            // Método para sistemas de ecuaciones
+            const vars = Object.keys(solution);
+            headers = headers.concat(vars, 'Error');
+        } else if (Array.isArray(solution)) {
+            // Método de integración como Simpson
+            headers = headers.concat(['Iteración', 'Área Parcial', 'Error']);
+        } else {
+            // Método para una sola ecuación
+            headers = headers.concat(['x', 'f(x)', 'Error']);
+        }
+
+        table.appendChild(this.createTableHeader(headers));
+        table.appendChild(this.createTableBody(iterations, solution));
+
+        return table;
+    }
+
+    createTableHeader(headers) {
+        const thead = document.createElement('thead');
+        const row = document.createElement('tr');
+        headers.forEach(text => {
+            const th = document.createElement('th');
+            th.textContent = text;
+            th.className = 'text-center';
+            row.appendChild(th);
+        });
+        thead.appendChild(row);
+        return thead;
+    }
+
+    createTableBody(iterations, solution = null) {
+        const tbody = document.createElement('tbody');
+        iterations.forEach((iter) => {
+            const row = document.createElement('tr');
+            const cells = [];
+
+            // Iteración
+            const iterCell = document.createElement('td');
+            iterCell.textContent = iter.iteration;
+            iterCell.className = 'text-center';
+            cells.push(iterCell);
+
+            if (solution && typeof solution === 'object' && !Array.isArray(solution)) {
+                // Método para sistemas de ecuaciones
+                iter.x.forEach(val => {
+                    const valCell = document.createElement('td');
+                    valCell.textContent = val.toFixed(6);
+                    valCell.className = 'text-center';
+                    cells.push(valCell);
+                });
+                // Error
+                const errorCell = document.createElement('td');
+                errorCell.textContent = iter.error !== undefined ? iter.error.toFixed(6) : '-';
+                errorCell.className = 'text-center';
+                cells.push(errorCell);
+            } else if (Array.isArray(solution)) {
+                // Método de integración (Simpson)
+                const areaCell = document.createElement('td');
+                areaCell.textContent = iter.area !== undefined ? iter.area.toFixed(6) : '-';
+                areaCell.className = 'text-center';
+                cells.push(areaCell);
+
+                const errorCell = document.createElement('td');
+                errorCell.textContent = iter.error !== undefined ? iter.error.toFixed(6) : '-';
+                errorCell.className = 'text-center';
+                cells.push(errorCell);
+            } else {
+                // Método para una sola ecuación
+                // x
+                const xCell = document.createElement('td');
+                xCell.textContent = iter.x.toFixed(6);
+                xCell.className = 'text-center';
+                cells.push(xCell);
+
+                // f(x)
+                const fxCell = document.createElement('td');
+                fxCell.textContent = iter.fx !== undefined ? iter.fx.toFixed(6) : '-';
+                fxCell.className = 'text-center';
+                cells.push(fxCell);
+
+                // Error
+                const errorCell = document.createElement('td');
+                errorCell.textContent = iter.error !== undefined ? iter.error.toFixed(6) : '-';
+                errorCell.className = 'text-center';
+                cells.push(errorCell);
+            }
+
+            // Añadir las celdas a la fila
+            cells.forEach(cell => row.appendChild(cell));
+            tbody.appendChild(row);
+        });
+        return tbody;
+    }
+
+    formatters = {
+        key: (key) => {
+            const formatMap = {
+                'root': 'Raíz encontrada',
+                'iterations': 'Iteraciones realizadas',
+                'converged': 'Convergió'
+            };
+            return formatMap[key] || key;
+        },
+        value: (value) => {
+            if (value == null) return 'N/A';
+            if (typeof value === 'number') {
+                if (value === 0) {
+                    return '0';
+                } else if (Math.abs(value) < 0.0001 || Math.abs(value) > 9999) {
+                    return value.toExponential(4);
+                } else {
+                    return value.toFixed(6);
+                }
+            }
+            if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+            return String(value);
+        }
+    };
+
+    // Función para manejar métodos de sistemas (opcional: agregar representaciones gráficas)
+    // Puedes implementar visualizaciones específicas para sistemas si lo deseas.
 
     handleError(error) {
         console.error('Error en la aplicación:', error);
@@ -810,49 +1087,49 @@ renderPlot(plotJson) {
     async validateAndPrepareFormData() {
         const method = this.elements.methodSelect.value;
         const iterations = parseInt(this.elements.form.iterations.value, 10);
-    
+
         if (!method) {
             throw new Error('Debe seleccionar un método numérico');
         }
         if (isNaN(iterations) || iterations < 1 || iterations > 1000) {
             throw new Error('El número de iteraciones debe estar entre 1 y 1000');
         }
-    
+
         let formData = { method, iterations };
-    
-        if (['jacobi', 'gauss_seidel'].includes(method)) {
+
+        if (['jacobi', 'gauss_seidel', 'broyden'].includes(method)) { // Añadido 'broyden'
             // Obtener ecuaciones y variables
             const equations = Array.from(this.elements.form.querySelectorAll('input[name="equations[]"]')).map(input => input.value.trim());
             const variables = Array.from(this.elements.form.querySelectorAll('input[name="variables[]"]')).map(input => input.value.trim());
-    
+
             if (!equations.length || !variables.length) {
                 throw new Error('Debe ingresar al menos una ecuación y una variable.');
             }
             if (equations.length !== variables.length) {
                 throw new Error('El número de ecuaciones debe ser igual al número de variables.');
             }
-    
+
             // Validar que las variables no estén vacías y cumplan el patrón
             for (const variable of variables) {
                 if (!variable || !/^[a-zA-Z]+$/.test(variable)) {
                     throw new Error('Cada variable debe contener letras válidas.');
                 }
             }
-    
+
             formData.equations = equations;
             formData.variables = variables;
-    
+
             // Validar el punto inicial
             const initial_guess_str = this.elements.initialGuessSystem.querySelector('input').value.trim();
             if (!initial_guess_str) {
                 throw new Error('El punto inicial es requerido para métodos de sistemas.');
             }
-    
+
             const initial_guess = initial_guess_str.split(',').map(val => parseFloat(val.trim()));
             if (initial_guess.length !== variables.length) {
                 throw new Error('El punto inicial debe tener el mismo número de elementos que variables.');
             }
-    
+
             formData.initial_guess = initial_guess;
         }
         else if (['trapezoidal', 'simpson'].includes(method)) {
@@ -861,9 +1138,9 @@ renderPlot(plotJson) {
             const a = parseFloat(this.elements.integrationInputs.querySelector('#a_integration').value);
             const b = parseFloat(this.elements.integrationInputs.querySelector('#b_integration').value);
             const n = parseInt(this.elements.integrationInputs.querySelector('#n_integration').value, 10);
-    
+
             console.log(`Ecuación: ${equation}, a: ${a}, b: ${b}, n: ${n}`);
-    
+
             if (!equation) {
                 throw new Error('La ecuación es requerida para métodos de integración.');
             }
@@ -876,7 +1153,7 @@ renderPlot(plotJson) {
             if (isNaN(n) || n < 1) {
                 throw new Error('El número de subintervalos (n) debe ser un entero positivo.');
             }
-    
+
             formData.equation = equation; // Mantén la ecuación original
             formData.a = a;
             formData.b = b;
@@ -886,51 +1163,51 @@ renderPlot(plotJson) {
             // Métodos para una sola ecuación
             const equation = this.elements.equationHidden.value.trim();
             const method = this.elements.methodSelect.value;
-    
+
             if (!equation) {
                 throw new Error('La ecuación es requerida');
             }
-    
+
             formData.equation = equation;
-    
+
             if (method === 'bisection') {
                 // Validar los límites del intervalo para Bisección
                 const a = parseFloat(this.elements.intervalInputs.querySelector('#a_bisection').value);
                 const b = parseFloat(this.elements.intervalInputs.querySelector('#b_bisection').value);
-    
+
                 if (isNaN(a) || isNaN(b)) {
                     throw new Error('Los límites del intervalo deben ser números válidos');
                 }
                 if (a >= b) {
                     throw new Error('El límite inferior (a) debe ser menor que el superior (b)');
                 }
-    
+
                 formData.a = a;
                 formData.b = b;
             } else if (method === 'secant') {
                 // Validar las estimaciones iniciales para Secante
                 const x0 = parseFloat(this.elements.form.x0.value);
                 const x1 = parseFloat(this.elements.form.x1.value);
-    
+
                 if (isNaN(x0) || isNaN(x1)) {
                     throw new Error('Las estimaciones iniciales x₀ y x₁ deben ser números válidos');
                 }
                 if (x0 === x1) {
                     throw new Error('Las estimaciones iniciales x₀ y x₁ deben ser distintas');
                 }
-    
+
                 formData.x0 = x0;
                 formData.x1 = x1;
             } else if (method === 'newton' || method === 'fixed_point') {
                 // Validar punto inicial para Newton-Raphson y Punto Fijo
                 const initial_guess = parseFloat(this.elements.initialGuessInput.querySelector('input').value);
-    
+
                 if (isNaN(initial_guess)) {
                     throw new Error('El punto inicial debe ser un número válido');
                 }
-    
+
                 formData.initial_guess = initial_guess;
-    
+
                 if (method === 'fixed_point') {
                     const gFunction = this.elements.gFunctionHidden.value.trim();
                     if (!gFunction) {
@@ -940,47 +1217,19 @@ renderPlot(plotJson) {
                 }
             }
         }
-    
+
         return formData;
     }
-    
-    
-    
+
     replaceFractions(eq) {
-        /**
-         * Reemplaza todas las instancias de \frac{a}{b} por (a)/(b).
-         * Maneja múltiples y fracciones anidadas.
-         */
         while (eq.includes('\\frac')) {
-            const fracStart = eq.indexOf('\\frac');
-            const firstBrace = eq.indexOf('{', fracStart);
-            if (firstBrace === -1) break;
+            const match = eq.match(/\\frac\{([^{}]+)\}\{([^{}]+)\}/);
+            if (!match) break;
 
-            // Función para encontrar el índice del cierre correspondiente
-            const findClosingBrace = (str, start) => {
-                let stack = 1;
-                for (let i = start + 1; i < str.length; i++) {
-                    if (str[i] === '{') stack++;
-                    else if (str[i] === '}') stack--;
-                    if (stack === 0) return i;
-                }
-                return -1; // No encontrado
-            };
-
-            const numeratorEnd = findClosingBrace(eq, firstBrace);
-            if (numeratorEnd === -1) break;
-            const numerator = eq.substring(firstBrace + 1, numeratorEnd);
-
-            const denominatorStart = eq.indexOf('{', numeratorEnd);
-            if (denominatorStart === -1) break;
-            const denominatorEnd = findClosingBrace(eq, denominatorStart);
-            if (denominatorEnd === -1) break;
-            const denominator = eq.substring(denominatorStart + 1, denominatorEnd);
-
-            // Reemplazar \frac{numerator}{denominator} por (numerator)/(denominator)
-            const frac = eq.substring(fracStart, denominatorEnd + 1);
+            const [fullMatch, numerator, denominator] = match;
             const replacement = `(${numerator})/(${denominator})`;
-            eq = eq.replace(frac, replacement);
+
+            eq = eq.replace(fullMatch, replacement);
         }
         return eq;
     }
@@ -988,15 +1237,15 @@ renderPlot(plotJson) {
     latexToJavaScript(latex) {
         let processedLatex = latex;
         console.log("Original LaTeX:", processedLatex);
-    
+
         // 1. Reemplazar \frac{a}{b} por (a)/(b)
         processedLatex = this.replaceFractions(processedLatex);
         console.log("Después de reemplazar fracciones:", processedLatex);
-    
+
         // 2. Reemplazar \sqrt{...} por sqrt(...)
         processedLatex = processedLatex.replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)');
         console.log("Después de reemplazar '\\sqrt{...}':", processedLatex);
-    
+
         // 3. Reemplazar otros comandos de LaTeX
         processedLatex = processedLatex.replace(/\\left|\\right/g, '');
         processedLatex = processedLatex.replace(/\\cdot|\\times/g, '*');
@@ -1009,35 +1258,22 @@ renderPlot(plotJson) {
         processedLatex = processedLatex.replace(/\\cos/g, 'cos');
         processedLatex = processedLatex.replace(/\\tan/g, 'tan');
         console.log("Después de reemplazar otros comandos de LaTeX:", processedLatex);
-    
-        // 4. **Eliminar el reemplazo de integrales en el frontend**
-        // processedLatex = replace_integrals(eq)
-        // console.log(`Ecuación después de reemplazar integrales: ${eq}`);
-    
-        // 5. **Eliminar el reemplazo de '{' y '}' por '(' y ')'**
-        // processedLatex = processedLatex.replace(/{/g, '(').replace(/}/g, ')')
-        // console.log("Después de reemplazar '{' y '}' por '()':", processedLatex);
-    
-        // 6. Insertar explícitamente '*' entre dígitos y letras o ')' con manejo de espacios
+
+        // 4. Insertar '*' entre dígitos y letras o ')' con manejo de espacios
         processedLatex = processedLatex.replace(/(\d)\s*([a-zA-Z(])/g, '$1*$2');
         processedLatex = processedLatex.replace(/(\))\s*([a-zA-Z(])/g, '$1*$2');
         console.log("Después de insertar '*':", processedLatex);
-    
-        // 7. **Eliminar el reemplazo de '^' por '**'**
-        // processedLatex = processedLatex.replace(/\^/g, '**')
-        // console.log("Después de reemplazar '^' por '**':", processedLatex);
-    
+
         // Validar paréntesis balanceados
         const openParens = (processedLatex.match(/\(/g) || []).length;
         const closeParens = (processedLatex.match(/\)/g) || []).length;
         if (openParens !== closeParens) {
             throw new Error("La ecuación contiene paréntesis desbalanceados.");
         }
-    
+
         console.log("Ecuación preprocesada para enviar:", processedLatex);
         return processedLatex;
     }
-    
 
     gFunctionToJavaScript(gFunc) {
         let processedGFunc = gFunc;
@@ -1143,22 +1379,29 @@ renderPlot(plotJson) {
             this.addResultRow(
                 this.elements.resultTable,
                 `Solución para ${varName}`,
-                values[index]
+                values[index].toFixed(6)
             );
         });
     }
 
     displayMainResults(result) {
-        const keysToShow = ['converged', 'iterations', 'root'];
-        const mainResults = Object.entries(result)
-            .filter(([key]) => keysToShow.includes(key))
-            .forEach(([key, value]) => {
-                this.addResultRow(
-                    this.elements.resultTable,
-                    this.formatters.key(key),
-                    this.formatters.value(value)
-                );
-            });
+        this.addResultRow(
+            this.elements.resultTable,
+            'Convergió',
+            result.converged ? 'Sí' : 'No'
+        );
+
+        this.addResultRow(
+            this.elements.resultTable,
+            'Iteraciones realizadas',
+            result.iterations
+        );
+
+        this.addResultRow(
+            this.elements.resultTable,
+            'Raíz encontrada',
+            result.root.toFixed(6)
+        );
     }
 
     displayIterationHistory(history, solution = null) {
@@ -1166,17 +1409,17 @@ renderPlot(plotJson) {
         this.elements.resultTable.appendChild(iterationTable);
     }
 
-
     addResultRow(table, label, value) {
         const row = document.createElement('tr');
         const labelCell = document.createElement('td');
         const valueCell = document.createElement('td');
 
-        labelCell.textContent = label;
-        valueCell.textContent = value;
+        labelCell.innerHTML = label;
+        valueCell.innerHTML = value;
         labelCell.className = 'fw-bold';
 
-        row.append(labelCell, valueCell);
+        row.appendChild(labelCell);
+        row.appendChild(valueCell);
         table.appendChild(row);
     }
 
@@ -1189,6 +1432,9 @@ renderPlot(plotJson) {
             // Método para sistemas de ecuaciones
             const vars = Object.keys(solution);
             headers = headers.concat(vars, 'Error');
+        } else if (Array.isArray(solution)) {
+            // Método de integración como Simpson
+            headers = headers.concat(['Iteración', 'Área Parcial', 'Error']);
         } else {
             // Método para una sola ecuación
             headers = headers.concat(['x', 'f(x)', 'Error']);
@@ -1238,6 +1484,17 @@ renderPlot(plotJson) {
                 errorCell.textContent = iter.error !== undefined ? iter.error.toFixed(6) : '-';
                 errorCell.className = 'text-center';
                 cells.push(errorCell);
+            } else if (Array.isArray(solution)) {
+                // Método de integración (Simpson)
+                const areaCell = document.createElement('td');
+                areaCell.textContent = iter.area !== undefined ? iter.area.toFixed(6) : '-';
+                areaCell.className = 'text-center';
+                cells.push(areaCell);
+
+                const errorCell = document.createElement('td');
+                errorCell.textContent = iter.error !== undefined ? iter.error.toFixed(6) : '-';
+                errorCell.className = 'text-center';
+                cells.push(errorCell);
             } else {
                 // Método para una sola ecuación
                 // x
@@ -1271,7 +1528,7 @@ renderPlot(plotJson) {
             const formatMap = {
                 'root': 'Raíz encontrada',
                 'iterations': 'Iteraciones realizadas',
-                'converged': 'Converge'
+                'converged': 'Convergió'
             };
             return formatMap[key] || key;
         },
@@ -1291,8 +1548,752 @@ renderPlot(plotJson) {
         }
     };
 
-    // Función para manejar métodos de sistemas (opcional: agregar representaciones gráficas)
-    // Puedes implementar visualizaciones específicas para sistemas si lo deseas.
+    handleError(error) {
+        console.error('Error en la aplicación:', error);
+
+        let userMessage = 'Ha ocurrido un error inesperado.';
+        if (error.message.includes('servidor')) {
+            userMessage = error.message;
+        } else if (error.message.includes('gráfico')) {
+            userMessage = 'No se pudo generar el gráfico. Los resultados numéricos están disponibles.';
+        } else if (error.message.includes('ecuación')) {
+            userMessage = 'La ecuación ingresada no es válida. Por favor, verifíquela.';
+        }
+
+        this.showError(userMessage);
+    }
+
+    showError(message) {
+        // Limpiar contenedores
+        this.elements.resultTable.innerHTML = '';
+        this.elements.plotHtmlContainer.innerHTML = '';
+        this.elements.resultsDiv.style.display = 'none';
+
+        // Mostrar mensaje de error
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger alert-dismissible fade show mt-3';
+        errorDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        this.elements.form.insertBefore(errorDiv, this.elements.form.firstChild);
+    }
+
+    handleInitializationError(error) {
+        console.error('Error de inicialización:', error);
+        document.body.innerHTML = `
+            <div class="container mt-5">
+                <div class="alert alert-danger">
+                    <h4 class="alert-heading">Error de Inicialización</h4>
+                    <p>Lo sentimos, no se pudo inicializar la calculadora.</p>
+                    <hr>
+                    <p class="mb-0">Error: ${error.message}</p>
+                    <button class="btn btn-primary mt-3" onclick="location.reload()">Recargar Página</button>
+                </div>
+            </div>
+        `;
+    }
+
+    async validateAndPrepareFormData() {
+        const method = this.elements.methodSelect.value;
+        const iterations = parseInt(this.elements.form.iterations.value, 10);
+
+        if (!method) {
+            throw new Error('Debe seleccionar un método numérico');
+        }
+        if (isNaN(iterations) || iterations < 1 || iterations > 1000) {
+            throw new Error('El número de iteraciones debe estar entre 1 y 1000');
+        }
+
+        let formData = { method, iterations };
+
+        if (['jacobi', 'gauss_seidel', 'broyden'].includes(method)) { // Añadido 'broyden'
+            // Obtener ecuaciones y variables
+            const equations = Array.from(this.elements.form.querySelectorAll('input[name="equations[]"]')).map(input => input.value.trim());
+            const variables = Array.from(this.elements.form.querySelectorAll('input[name="variables[]"]')).map(input => input.value.trim());
+
+            if (!equations.length || !variables.length) {
+                throw new Error('Debe ingresar al menos una ecuación y una variable.');
+            }
+            if (equations.length !== variables.length) {
+                throw new Error('El número de ecuaciones debe ser igual al número de variables.');
+            }
+
+            // Validar que las variables no estén vacías y cumplan el patrón
+            for (const variable of variables) {
+                if (!variable || !/^[a-zA-Z]+$/.test(variable)) {
+                    throw new Error('Cada variable debe contener letras válidas.');
+                }
+            }
+
+            formData.equations = equations;
+            formData.variables = variables;
+
+            // Validar el punto inicial
+            const initial_guess_str = this.elements.initialGuessSystem.querySelector('input').value.trim();
+            if (!initial_guess_str) {
+                throw new Error('El punto inicial es requerido para métodos de sistemas.');
+            }
+
+            const initial_guess = initial_guess_str.split(',').map(val => parseFloat(val.trim()));
+            if (initial_guess.length !== variables.length) {
+                throw new Error('El punto inicial debe tener el mismo número de elementos que variables.');
+            }
+
+            formData.initial_guess = initial_guess;
+        }
+        else if (['trapezoidal', 'simpson'].includes(method)) {
+            // Métodos de Integración Definida
+            const equation = this.elements.equationHidden.value.trim();
+            const a = parseFloat(this.elements.integrationInputs.querySelector('#a_integration').value);
+            const b = parseFloat(this.elements.integrationInputs.querySelector('#b_integration').value);
+            const n = parseInt(this.elements.integrationInputs.querySelector('#n_integration').value, 10);
+
+            console.log(`Ecuación: ${equation}, a: ${a}, b: ${b}, n: ${n}`);
+
+            if (!equation) {
+                throw new Error('La ecuación es requerida para métodos de integración.');
+            }
+            if (isNaN(a) || isNaN(b)) {
+                throw new Error('Los límites del intervalo deben ser números válidos.');
+            }
+            if (a >= b) {
+                throw new Error('El límite inferior (a) debe ser menor que el superior (b).');
+            }
+            if (isNaN(n) || n < 1) {
+                throw new Error('El número de subintervalos (n) debe ser un entero positivo.');
+            }
+
+            formData.equation = equation; // Mantén la ecuación original
+            formData.a = a;
+            formData.b = b;
+            formData.n = n;
+        }
+        else {
+            // Métodos para una sola ecuación
+            const equation = this.elements.equationHidden.value.trim();
+            const method = this.elements.methodSelect.value;
+
+            if (!equation) {
+                throw new Error('La ecuación es requerida');
+            }
+
+            formData.equation = equation;
+
+            if (method === 'bisection') {
+                // Validar los límites del intervalo para Bisección
+                const a = parseFloat(this.elements.intervalInputs.querySelector('#a_bisection').value);
+                const b = parseFloat(this.elements.intervalInputs.querySelector('#b_bisection').value);
+
+                if (isNaN(a) || isNaN(b)) {
+                    throw new Error('Los límites del intervalo deben ser números válidos');
+                }
+                if (a >= b) {
+                    throw new Error('El límite inferior (a) debe ser menor que el superior (b)');
+                }
+
+                formData.a = a;
+                formData.b = b;
+            } else if (method === 'secant') {
+                // Validar las estimaciones iniciales para Secante
+                const x0 = parseFloat(this.elements.form.x0.value);
+                const x1 = parseFloat(this.elements.form.x1.value);
+
+                if (isNaN(x0) || isNaN(x1)) {
+                    throw new Error('Las estimaciones iniciales x₀ y x₁ deben ser números válidos');
+                }
+                if (x0 === x1) {
+                    throw new Error('Las estimaciones iniciales x₀ y x₁ deben ser distintas');
+                }
+
+                formData.x0 = x0;
+                formData.x1 = x1;
+            } else if (method === 'newton' || method === 'fixed_point') {
+                // Validar punto inicial para Newton-Raphson y Punto Fijo
+                const initial_guess = parseFloat(this.elements.initialGuessInput.querySelector('input').value);
+
+                if (isNaN(initial_guess)) {
+                    throw new Error('El punto inicial debe ser un número válido');
+                }
+
+                formData.initial_guess = initial_guess;
+
+                if (method === 'fixed_point') {
+                    const gFunction = this.elements.gFunctionHidden.value.trim();
+                    if (!gFunction) {
+                        throw new Error('La función g(x) es requerida para el método de Punto Fijo');
+                    }
+                    formData.gFunction = gFunction;
+                }
+            }
+        }
+
+        return formData;
+    }
+
+    replaceFractions(eq) {
+        while (eq.includes('\\frac')) {
+            const match = eq.match(/\\frac\{([^{}]+)\}\{([^{}]+)\}/);
+            if (!match) break;
+
+            const [fullMatch, numerator, denominator] = match;
+            const replacement = `(${numerator})/(${denominator})`;
+
+            eq = eq.replace(fullMatch, replacement);
+        }
+        return eq;
+    }
+
+    latexToJavaScript(latex) {
+        let processedLatex = latex;
+        console.log("Original LaTeX:", processedLatex);
+
+        // Reemplazar fracciones y comandos de LaTeX
+        processedLatex = this.replaceFractions(processedLatex);
+        processedLatex = processedLatex.replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)');
+        processedLatex = processedLatex.replace(/\\left|\\right/g, '');
+        processedLatex = processedLatex.replace(/\\cdot|\\times/g, '*');
+        processedLatex = processedLatex.replace(/\\div/g, '/');
+        processedLatex = processedLatex.replace(/\\pi/g, 'pi');
+        processedLatex = processedLatex.replace(/\\exp\{([^{}]+)\}/g, 'exp($1)');
+
+        // Insertar '*' implícito
+        processedLatex = processedLatex.replace(/(\d)\s*([a-zA-Z(])/g, '$1*$2');
+        processedLatex = processedLatex.replace(/(\))\s*([a-zA-Z(])/g, '$1*$2');
+        return processedLatex;
+    }
+
+    gFunctionToJavaScript(gFunc) {
+        let processedGFunc = gFunc;
+        console.log("Original gFunction LaTeX:", processedGFunc);
+
+        // Corregir fracciones mal formadas
+        processedGFunc = this.replaceFractions(processedGFunc);
+        console.log("Después de reemplazar fracciones en gFunction:", processedGFunc);
+
+        // Reemplazar otros comandos matemáticos
+        processedGFunc = processedGFunc.replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)');
+        processedGFunc = processedGFunc.replace(/\\left|\\right/g, '');
+        processedGFunc = processedGFunc.replace(/\\cdot|\\times/g, '*');
+        processedGFunc = processedGFunc.replace(/\\div/g, '/');
+        processedGFunc = processedGFunc.replace(/\\pi/g, 'pi');
+        processedGFunc = processedGFunc.replace(/\\ln/g, 'log');
+        processedGFunc = processedGFunc.replace(/\\log/g, 'log10');
+        processedGFunc = processedGFunc.replace(/\\exp\{([^{}]+)\}/g, 'exp($1)');
+        processedGFunc = processedGFunc.replace(/\\sin/g, 'sin');
+        processedGFunc = processedGFunc.replace(/\\cos/g, 'cos');
+        processedGFunc = processedGFunc.replace(/\\tan/g, 'tan');
+
+        // Reglas de multiplicación implícita
+        processedGFunc = processedGFunc.replace(/(\d)([a-zA-Z(])/g, '$1*$2');
+        processedGFunc = processedGFunc.replace(/([a-zA-Z)])([a-zA-Z(])/g, '$1*$2');
+        processedGFunc = processedGFunc.replace(/\)([a-zA-Z(])/g, ')*$1');
+
+        // Insertar '*' entre ')' y cualquier letra
+        processedGFunc = processedGFunc.replace(/([a-zA-Z)])([a-zA-Z(])/g, '$1*$2');
+        console.log("Después de insertar '*', gFunction:", processedGFunc);
+
+        // Validar paréntesis balanceados
+        const openParens = (processedGFunc.match(/\(/g) || []).length;
+        const closeParens = (processedGFunc.match(/\)/g) || []).length;
+        if (openParens !== closeParens) {
+            throw new Error("gFunction contiene paréntesis desbalanceados.");
+        }
+
+        return processedGFunc;
+    }
+
+    displayResults(result) {
+        this.elements.resultTable.innerHTML = '';
+
+        if (result.solution) {
+            // Mostrar la solución
+            const solution = result.solution;
+            const table = document.createElement('table');
+            table.className = 'table table-bordered';
+
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            const varHeader = document.createElement('th');
+            varHeader.textContent = 'Variable';
+            const valHeader = document.createElement('th');
+            valHeader.textContent = 'Valor';
+            headerRow.appendChild(varHeader);
+            headerRow.appendChild(valHeader);
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+
+            for (const [varName, value] of Object.entries(solution)) {
+                const row = document.createElement('tr');
+                const varCell = document.createElement('td');
+                varCell.textContent = varName;
+                const valCell = document.createElement('td');
+                valCell.textContent = value.toFixed(6);
+                row.appendChild(varCell);
+                row.appendChild(valCell);
+                tbody.appendChild(row);
+            }
+
+            table.appendChild(tbody);
+            this.elements.resultTable.appendChild(table);
+        }
+
+        // Puedes agregar más detalles según lo necesites
+    }
+
+    displaySystemResults(result) {
+        const solution = result.solution;
+        const keys = Object.keys(solution);
+        const values = Object.values(solution);
+
+        // Mostrar si convergió
+        this.addResultRow(
+            this.elements.resultTable,
+            'Convergió',
+            result.converged ? 'Sí' : 'No'
+        );
+
+        // Mostrar número de iteraciones
+        this.addResultRow(
+            this.elements.resultTable,
+            'Iteraciones realizadas',
+            result.iterations
+        );
+
+        // Mostrar las soluciones
+        keys.forEach((varName, index) => {
+            this.addResultRow(
+                this.elements.resultTable,
+                `Solución para ${varName}`,
+                values[index].toFixed(6)
+            );
+        });
+    }
+
+    displayMainResults(result) {
+        this.addResultRow(
+            this.elements.resultTable,
+            'Convergió',
+            result.converged ? 'Sí' : 'No'
+        );
+
+        this.addResultRow(
+            this.elements.resultTable,
+            'Iteraciones realizadas',
+            result.iterations
+        );
+
+        this.addResultRow(
+            this.elements.resultTable,
+            'Raíz encontrada',
+            result.root.toFixed(6)
+        );
+    }
+
+    displayIterationHistory(history, solution = null) {
+        const iterationTable = this.createIterationTable(history, solution);
+        this.elements.resultTable.appendChild(iterationTable);
+    }
+
+    addResultRow(table, label, value) {
+        const row = document.createElement('tr');
+        const labelCell = document.createElement('td');
+        const valueCell = document.createElement('td');
+
+        labelCell.innerHTML = label;
+        valueCell.innerHTML = value;
+        labelCell.className = 'fw-bold';
+
+        row.appendChild(labelCell);
+        row.appendChild(valueCell);
+        table.appendChild(row);
+    }
+
+    createIterationTable(iterations, solution = null) {
+        const table = document.createElement('table');
+        table.className = 'table table-striped table-bordered mt-3';
+
+        let headers = ['Iteración'];
+        if (solution && typeof solution === 'object' && !Array.isArray(solution)) {
+            // Método para sistemas de ecuaciones
+            const vars = Object.keys(solution);
+            headers = headers.concat(vars, 'Error');
+        } else if (Array.isArray(solution)) {
+            // Método de integración como Simpson
+            headers = headers.concat(['Iteración', 'Área Parcial', 'Error']);
+        } else {
+            // Método para una sola ecuación
+            headers = headers.concat(['x', 'f(x)', 'Error']);
+        }
+
+        table.appendChild(this.createTableHeader(headers));
+        table.appendChild(this.createTableBody(iterations, solution));
+
+        return table;
+    }
+
+    createTableHeader(headers) {
+        const thead = document.createElement('thead');
+        const row = document.createElement('tr');
+        headers.forEach(text => {
+            const th = document.createElement('th');
+            th.textContent = text;
+            th.className = 'text-center';
+            row.appendChild(th);
+        });
+        thead.appendChild(row);
+        return thead;
+    }
+
+    createTableBody(iterations, solution = null) {
+        const tbody = document.createElement('tbody');
+        iterations.forEach((iter) => {
+            const row = document.createElement('tr');
+            const cells = [];
+
+            // Iteración
+            const iterCell = document.createElement('td');
+            iterCell.textContent = iter.iteration;
+            iterCell.className = 'text-center';
+            cells.push(iterCell);
+
+            if (solution && typeof solution === 'object' && !Array.isArray(solution)) {
+                // Método para sistemas de ecuaciones
+                iter.x.forEach(val => {
+                    const valCell = document.createElement('td');
+                    valCell.textContent = val.toFixed(6);
+                    valCell.className = 'text-center';
+                    cells.push(valCell);
+                });
+                // Error
+                const errorCell = document.createElement('td');
+                errorCell.textContent = iter.error !== undefined ? iter.error.toFixed(6) : '-';
+                errorCell.className = 'text-center';
+                cells.push(errorCell);
+            } else if (Array.isArray(solution)) {
+                // Método de integración (Simpson)
+                const areaCell = document.createElement('td');
+                areaCell.textContent = iter.area !== undefined ? iter.area.toFixed(6) : '-';
+                areaCell.className = 'text-center';
+                cells.push(areaCell);
+
+                const errorCell = document.createElement('td');
+                errorCell.textContent = iter.error !== undefined ? iter.error.toFixed(6) : '-';
+                errorCell.className = 'text-center';
+                cells.push(errorCell);
+            } else {
+                // Método para una sola ecuación
+                // x
+                const xCell = document.createElement('td');
+                xCell.textContent = iter.x.toFixed(6);
+                xCell.className = 'text-center';
+                cells.push(xCell);
+
+                // f(x)
+                const fxCell = document.createElement('td');
+                fxCell.textContent = iter.fx !== undefined ? iter.fx.toFixed(6) : '-';
+                fxCell.className = 'text-center';
+                cells.push(fxCell);
+
+                // Error
+                const errorCell = document.createElement('td');
+                errorCell.textContent = iter.error !== undefined ? iter.error.toFixed(6) : '-';
+                errorCell.className = 'text-center';
+                cells.push(errorCell);
+            }
+
+            // Añadir las celdas a la fila
+            cells.forEach(cell => row.appendChild(cell));
+            tbody.appendChild(row);
+        });
+        return tbody;
+    }
+
+    formatters = {
+        key: (key) => {
+            const formatMap = {
+                'root': 'Raíz encontrada',
+                'iterations': 'Iteraciones realizadas',
+                'converged': 'Convergió'
+            };
+            return formatMap[key] || key;
+        },
+        value: (value) => {
+            if (value == null) return 'N/A';
+            if (typeof value === 'number') {
+                if (value === 0) {
+                    return '0';
+                } else if (Math.abs(value) < 0.0001 || Math.abs(value) > 9999) {
+                    return value.toExponential(4);
+                } else {
+                    return value.toFixed(6);
+                }
+            }
+            if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+            return String(value);
+        }
+    };
+
+    handleError(error) {
+        console.error('Error en la aplicación:', error);
+
+        let userMessage = 'Ha ocurrido un error inesperado.';
+        if (error.message.includes('servidor')) {
+            userMessage = error.message;
+        } else if (error.message.includes('gráfico')) {
+            userMessage = 'No se pudo generar el gráfico. Los resultados numéricos están disponibles.';
+        } else if (error.message.includes('ecuación')) {
+            userMessage = 'La ecuación ingresada no es válida. Por favor, verifíquela.';
+        }
+
+        this.showError(userMessage);
+    }
+
+    showError(message) {
+        // Limpiar contenedores
+        this.elements.resultTable.innerHTML = '';
+        this.elements.plotHtmlContainer.innerHTML = '';
+        this.elements.resultsDiv.style.display = 'none';
+
+        // Mostrar mensaje de error
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger alert-dismissible fade show mt-3';
+        errorDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        this.elements.form.insertBefore(errorDiv, this.elements.form.firstChild);
+    }
+
+    handleInitializationError(error) {
+        console.error('Error de inicialización:', error);
+        document.body.innerHTML = `
+            <div class="container mt-5">
+                <div class="alert alert-danger">
+                    <h4 class="alert-heading">Error de Inicialización</h4>
+                    <p>Lo sentimos, no se pudo inicializar la calculadora.</p>
+                    <hr>
+                    <p class="mb-0">Error: ${error.message}</p>
+                    <button class="btn btn-primary mt-3" onclick="location.reload()">Recargar Página</button>
+                </div>
+            </div>
+        `;
+    }
+
+    async validateAndPrepareFormData() {
+        const method = this.elements.methodSelect.value;
+        const iterations = parseInt(this.elements.form.iterations.value, 10);
+
+        if (!method) {
+            throw new Error('Debe seleccionar un método numérico');
+        }
+        if (isNaN(iterations) || iterations < 1 || iterations > 1000) {
+            throw new Error('El número de iteraciones debe estar entre 1 y 1000');
+        }
+
+        let formData = { method, iterations };
+
+        if (['jacobi', 'gauss_seidel', 'broyden'].includes(method)) { // Añadido 'broyden'
+            // Obtener ecuaciones y variables
+            const equations = Array.from(this.elements.form.querySelectorAll('input[name="equations[]"]')).map(input => input.value.trim());
+            const variables = Array.from(this.elements.form.querySelectorAll('input[name="variables[]"]')).map(input => input.value.trim());
+
+            if (!equations.length || !variables.length) {
+                throw new Error('Debe ingresar al menos una ecuación y una variable.');
+            }
+            if (equations.length !== variables.length) {
+                throw new Error('El número de ecuaciones debe ser igual al número de variables.');
+            }
+
+            // Validar que las variables no estén vacías y cumplan el patrón
+            for (const variable of variables) {
+                if (!variable || !/^[a-zA-Z]+$/.test(variable)) {
+                    throw new Error('Cada variable debe contener letras válidas.');
+                }
+            }
+
+            formData.equations = equations;
+            formData.variables = variables;
+
+            // Validar el punto inicial
+            const initial_guess_str = this.elements.initialGuessSystem.querySelector('input').value.trim();
+            if (!initial_guess_str) {
+                throw new Error('El punto inicial es requerido para métodos de sistemas.');
+            }
+
+            const initial_guess = initial_guess_str.split(',').map(val => parseFloat(val.trim()));
+            if (initial_guess.length !== variables.length) {
+                throw new Error('El punto inicial debe tener el mismo número de elementos que variables.');
+            }
+
+            formData.initial_guess = initial_guess;
+        }
+        else if (['trapezoidal', 'simpson'].includes(method)) {
+            // Métodos de Integración Definida
+            const equation = this.elements.equationHidden.value.trim();
+            const a = parseFloat(this.elements.integrationInputs.querySelector('#a_integration').value);
+            const b = parseFloat(this.elements.integrationInputs.querySelector('#b_integration').value);
+            const n = parseInt(this.elements.integrationInputs.querySelector('#n_integration').value, 10);
+
+            console.log(`Ecuación: ${equation}, a: ${a}, b: ${b}, n: ${n}`);
+
+            if (!equation) {
+                throw new Error('La ecuación es requerida para métodos de integración.');
+            }
+            if (isNaN(a) || isNaN(b)) {
+                throw new Error('Los límites del intervalo deben ser números válidos.');
+            }
+            if (a >= b) {
+                throw new Error('El límite inferior (a) debe ser menor que el superior (b).');
+            }
+            if (isNaN(n) || n < 1) {
+                throw new Error('El número de subintervalos (n) debe ser un entero positivo.');
+            }
+
+            formData.equation = equation; // Mantén la ecuación original
+            formData.a = a;
+            formData.b = b;
+            formData.n = n;
+        }
+        else {
+            // Métodos para una sola ecuación
+            const equation = this.elements.equationHidden.value.trim();
+            const method = this.elements.methodSelect.value;
+
+            if (!equation) {
+                throw new Error('La ecuación es requerida');
+            }
+
+            formData.equation = equation;
+
+            if (method === 'bisection') {
+                // Validar los límites del intervalo para Bisección
+                const a = parseFloat(this.elements.intervalInputs.querySelector('#a_bisection').value);
+                const b = parseFloat(this.elements.intervalInputs.querySelector('#b_bisection').value);
+
+                if (isNaN(a) || isNaN(b)) {
+                    throw new Error('Los límites del intervalo deben ser números válidos');
+                }
+                if (a >= b) {
+                    throw new Error('El límite inferior (a) debe ser menor que el superior (b)');
+                }
+
+                formData.a = a;
+                formData.b = b;
+            } else if (method === 'secant') {
+                // Validar las estimaciones iniciales para Secante
+                const x0 = parseFloat(this.elements.form.x0.value);
+                const x1 = parseFloat(this.elements.form.x1.value);
+
+                if (isNaN(x0) || isNaN(x1)) {
+                    throw new Error('Las estimaciones iniciales x₀ y x₁ deben ser números válidos');
+                }
+                if (x0 === x1) {
+                    throw new Error('Las estimaciones iniciales x₀ y x₁ deben ser distintas');
+                }
+
+                formData.x0 = x0;
+                formData.x1 = x1;
+            } else if (method === 'newton' || method === 'fixed_point') {
+                // Validar punto inicial para Newton-Raphson y Punto Fijo
+                const initial_guess = parseFloat(this.elements.initialGuessInput.querySelector('input').value);
+
+                if (isNaN(initial_guess)) {
+                    throw new Error('El punto inicial debe ser un número válido');
+                }
+
+                formData.initial_guess = initial_guess;
+
+                if (method === 'fixed_point') {
+                    const gFunction = this.elements.gFunctionHidden.value.trim();
+                    if (!gFunction) {
+                        throw new Error('La función g(x) es requerida para el método de Punto Fijo');
+                    }
+                    formData.gFunction = gFunction;
+                }
+            }
+        }
+
+        return formData;
+    }
+
+    displayResults(result) {
+        this.elements.resultTable.innerHTML = '';
+
+        if (result.solution) {
+            // Mostrar la solución
+            const solution = result.solution;
+            const table = document.createElement('table');
+            table.className = 'table table-bordered';
+
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            const varHeader = document.createElement('th');
+            varHeader.textContent = 'Variable';
+            const valHeader = document.createElement('th');
+            valHeader.textContent = 'Valor';
+            headerRow.appendChild(varHeader);
+            headerRow.appendChild(valHeader);
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+
+            for (const [varName, value] of Object.entries(solution)) {
+                const row = document.createElement('tr');
+                const varCell = document.createElement('td');
+                varCell.textContent = varName;
+                const valCell = document.createElement('td');
+                valCell.textContent = value.toFixed(6);
+                row.appendChild(varCell);
+                row.appendChild(valCell);
+                tbody.appendChild(row);
+            }
+
+            table.appendChild(tbody);
+            this.elements.resultTable.appendChild(table);
+        }
+
+        // Puedes agregar más detalles según lo necesites
+    }
+
+    renderPlot(plotJson, method) {
+        try {
+            console.log("Datos de plotJson recibidos:", plotJson);
+            const plotData = JSON.parse(plotJson);
+
+            if (!plotData.data || !plotData.layout) {
+                throw new Error("plot_json no contiene los campos necesarios 'data' y 'layout'.");
+            }
+
+            // Añadir título específico según el método
+            plotData.layout.title = `Integración usando el Método ${method.charAt(0).toUpperCase() + method.slice(1)}`;
+
+            Plotly.newPlot(this.elements.plotHtmlContainer, plotData.data, plotData.layout).then(() => {
+                if (plotData.frames && plotData.frames.length > 0) {
+                    Plotly.addFrames(this.elements.plotHtmlContainer, plotData.frames);
+                    Plotly.animate(this.elements.plotHtmlContainer, {
+                        transition: {
+                            duration: 700,
+                            easing: 'linear'
+                        },
+                        frame: {
+                            duration: 700,
+                            redraw: false
+                        }
+                    });
+                }
+            }).catch(error => {
+                console.error('Error al renderizar la gráfica:', error);
+                this.showError('No se pudo renderizar la gráfica correctamente.');
+            });
+        } catch (error) {
+            console.error('Error al parsear plot_json:', error);
+            this.showError('Error al procesar los datos de la gráfica.');
+        }
+    }
 }
 document.addEventListener('DOMContentLoaded', () => {
     try {

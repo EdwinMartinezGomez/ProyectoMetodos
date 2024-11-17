@@ -1,5 +1,10 @@
 from flask import Blueprint, request, jsonify, render_template
-from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
+from sympy.parsing.sympy_parser import (
+    parse_expr,
+    standard_transformations,
+    implicit_multiplication_application,
+    convert_xor
+)
 import numpy as np
 import plotly
 import plotly.graph_objs as go
@@ -7,18 +12,14 @@ import json
 import sympy as sp
 import re
 import logging
-from sympy.parsing.sympy_parser import (
-    parse_expr,
-    standard_transformations,
-    implicit_multiplication_application,
-    convert_xor  # Importar convert_xor
-)
 
+# Definir las transformaciones incluyendo 'convert_xor'
 transformations = (
     standard_transformations +
     (implicit_multiplication_application,) +
-    (convert_xor,)  # Agregar convert_xor
+    (convert_xor,)
 )
+
 main = Blueprint('main', __name__)
 
 # Configuración del logger
@@ -28,6 +29,7 @@ logging.basicConfig(level=logging.INFO)
 @main.route('/')
 def index():
     return render_template('calculator.html')
+
 def replace_integrals(eq):
     """
     Reemplaza expresiones de integrales definidas en LaTeX por la sintaxis de SymPy.
@@ -104,6 +106,7 @@ def replace_fractions(eq):
         logger.info(f"Reemplazado '{frac_full}' por '{frac_replacement}'.")
 
     return eq
+
 def preprocess_equation(equation):
     """
     Preprocesa la ecuación para manejar notación LaTeX, inserción de '*', reemplazo de '^' por '**', y reemplazo de \frac y \int.
@@ -157,23 +160,15 @@ def preprocess_equation(equation):
     return eq
 
 def parse_equation(equation_str):
-    """
-    Analiza y valida la ecuación proporcionada por el usuario.
-    """
     try:
         if not equation_str:
             raise ValueError("La ecuación no puede estar vacía.")
 
-        # Eliminar 'Math.'
         equation_str = equation_str.replace('Math.', '')
-        logger.info(f"Ecuación sin 'Math.': {equation_str}")  # Log
-
         processed_eq = preprocess_equation(equation_str)
-        logger.info(f"Ecuación preprocesada: {processed_eq}")  # Log
 
         x = sp.Symbol('x')
 
-        # Funciones y constantes permitidas usando SymPy
         allowed_funcs = {
             'E': sp.E,
             'e': sp.E,
@@ -183,19 +178,33 @@ def parse_equation(equation_str):
             'cos': sp.cos,
             'tan': sp.tan,
             'log': sp.log,
-            'log10': sp.log,  # Asegurar que log10 sea manejado adecuadamente
+            'log10': sp.log,
             'sqrt': sp.sqrt,
             'abs': sp.Abs,
             'pi': sp.pi,
-            'Integral': sp.Integral  # Permitir Integral
+            'Integral': sp.Integral
         }
 
-        transformations = (standard_transformations + (implicit_multiplication_application,))
-
         expr = parse_expr(processed_eq, local_dict={'x': x, **allowed_funcs}, transformations=transformations)
-        f = sp.lambdify(x, expr, modules=['numpy'])
+        f_original = sp.lambdify(x, expr, modules=['numpy'])
 
-        return f
+        # Función segura para manejar evaluaciones
+        def safe_f(val):
+            try:
+                result = f_original(val)
+                if np.isfinite(result):
+                    return result
+                return np.inf
+            except OverflowError:
+                return np.inf
+            except Exception:
+                return np.inf
+
+        # Vectorizar la función segura sin causar recursión
+        f = np.vectorize(safe_f)
+
+        return expr, f
+
     except Exception as e:
         logger.error(f"Error al procesar la ecuación: {str(e)}")
         raise ValueError(f"Error al procesar la ecuación: {str(e)}")
@@ -213,7 +222,6 @@ def parse_derivative_equation(equation_str):
 
         x = sp.Symbol('x')
 
-        # Funciones y constantes permitidas usando SymPy
         allowed_funcs = {
             'E': sp.E,
             'e': sp.E,
@@ -223,12 +231,12 @@ def parse_derivative_equation(equation_str):
             'cos': sp.cos,
             'tan': sp.tan,
             'log': sp.log,
+            'log10': sp.log,
             'sqrt': sp.sqrt,
             'abs': sp.Abs,
-            'pi': sp.pi
+            'pi': sp.pi,
+            'Integral': sp.Integral
         }
-
-        transformations = (standard_transformations + (implicit_multiplication_application,))
 
         expr = parse_expr(processed_eq, local_dict={'x': x, **allowed_funcs}, transformations=transformations)
         derivative_expr = sp.diff(expr, x)
@@ -262,7 +270,6 @@ def parse_g_function(g_func_str):
 
         x = sp.Symbol('x')
 
-        # Funciones y constantes permitidas usando SymPy
         allowed_funcs = {
             'E': sp.E,
             'e': sp.E,
@@ -272,12 +279,12 @@ def parse_g_function(g_func_str):
             'cos': sp.cos,
             'tan': sp.tan,
             'log': sp.log,
+            'log10': sp.log,
             'sqrt': sp.sqrt,
             'abs': sp.Abs,
-            'pi': sp.pi
+            'pi': sp.pi,
+            'Integral': sp.Integral
         }
-
-        transformations = (standard_transformations + (implicit_multiplication_application,))
 
         expr = parse_expr(processed_g_func, local_dict={'x': x, **allowed_funcs}, transformations=transformations)
         g = sp.lambdify(x, expr, modules=['numpy'])
@@ -482,58 +489,147 @@ def trapezoidal_method(f, a, b, n):
     x = np.linspace(a, b, n + 1)
     y = f(x)
     area = (h / 2) * np.sum(y[:-1] + y[1:])
-    # Error estimado puede depender de la segunda derivada, pero para simplicidad lo omitimos
-    # o podrías calcularlo si tienes la función analítica
-    return area, None  # Retornamos None para el error ya que no lo calculamos aquí
+
+    trapezoids = []
+    for i in range(n):
+        # Definir los vértices del trapezoide
+        trapezoid_x = [x[i], x[i+1], x[i+1], x[i], x[i]]
+        trapezoid_y = [0, 0, y[i+1], y[i], 0]  # Cierra hacia el eje x
+        trapezoids.append({'x': trapezoid_x, 'y': trapezoid_y})
+    
+    return area, trapezoids
+
+def calculate_trapezoidal_error(expr, a, b, n):
+    """
+    Calcula el error estimado para el método del trapecio.
+    """
+    x = sp.Symbol('x')
+    try:
+        second_derivative = sp.diff(expr, x, 2)
+        f_double_prime = sp.lambdify(x, second_derivative, modules=['numpy'])
+        # Evaluar en múltiples puntos para encontrar el máximo absoluto
+        x_vals = np.linspace(a, b, 1000)
+        f_double_prime_vals = np.abs(f_double_prime(x_vals))
+        max_f_double_prime = np.max(f_double_prime_vals)
+        error = ((b - a)**3) / (12 * n**2) * max_f_double_prime
+        return error
+    except Exception as e:
+        logger.error(f"Error al calcular la derivada segunda para el error del trapecio: {str(e)}")
+        raise ValueError("No se pudo calcular el error estimado para el método del trapecio.")
+
+def calculate_simpson_error(expr, a, b, n):
+    """
+    Calcula el error estimado para el método de Simpson.
+    """
+    x = sp.Symbol('x')
+    try:
+        fourth_derivative = sp.diff(expr, x, 4)
+        f_fourth_prime = sp.lambdify(x, fourth_derivative, modules=['numpy'])
+        # Evaluar en múltiples puntos para encontrar el máximo absoluto
+        x_vals = np.linspace(a, b, 1000)
+        f_fourth_prime_vals = np.abs(f_fourth_prime(x_vals))
+        max_f_fourth_prime = np.max(f_fourth_prime_vals)
+        error = ((b - a)**5) / (180 * n**4) * max_f_fourth_prime
+        return error
+    except Exception as e:
+        logger.error(f"Error al calcular la derivada cuarta para el error de Simpson: {str(e)}")
+        raise ValueError("No se pudo calcular el error estimado para el método de Simpson.")
 
 def simpson_method(f, a, b, n):
     if n % 2 != 0:
         raise ValueError("El número de subintervalos (n) debe ser par para el método de Simpson.")
+    
     h = (b - a) / n
     x = np.linspace(a, b, n + 1)
     y = f(x)
     area = (h / 3) * (y[0] + 4 * np.sum(y[1:n:2]) + 2 * np.sum(y[2:n-1:2]) + y[n])
-    # Error estimado puede depender de la cuarta derivada, pero para simplicidad lo omitimos
-    return area, None  # Retornamos None para el error ya que no lo calculamos aquí
+
+    # Crear parábolas para graficar
+    parabolas = []
+    for i in range(0, n, 2):
+        x_parabola = np.linspace(x[i], x[i+2], 100)  # Más puntos para una curva suave
+        y_parabola = (
+            y[i] * ((x_parabola - x[i+1]) * (x_parabola - x[i+2])) / ((x[i] - x[i+1]) * (x[i] - x[i+2]))
+            + y[i+1] * ((x_parabola - x[i]) * (x_parabola - x[i+2])) / ((x[i+1] - x[i]) * (x[i+1] - x[i+2]))
+            + y[i+2] * ((x_parabola - x[i]) * (x_parabola - x[i+1])) / ((x[i+2] - x[i]) * (x[i+2] - x[i+1]))
+        )
+        parabolas.append({'x': x_parabola, 'y': y_parabola})
+    
+    return area, parabolas
+
+def render_integration_plot(f, a, b, n, method, extra_shapes):
+    x_vals = np.linspace(a, b, 1000)
+    y_vals = f(x_vals)
+
+    function_trace = go.Scatter(
+        x=x_vals,
+        y=y_vals,
+        mode='lines',
+        name='f(x)',
+        line=dict(color='blue')
+    )
+    
+    data_traces = [function_trace]
+
+    # Agregar las áreas bajo la curva (trapezoides o parábolas)
+    for shape in extra_shapes:
+        trace = go.Scatter(
+            x=shape['x'],
+            y=shape['y'],
+            fill='tonexty',
+            fillcolor='rgba(0, 100, 255, 0.2)',
+            mode='lines',
+            line=dict(color='rgba(0, 100, 255, 0.5)'),
+            showlegend=False
+        )
+        data_traces.append(trace)
+
+    layout = go.Layout(
+        title=f"Integración usando el Método {method.capitalize()}",
+        xaxis=dict(title='x'),
+        yaxis=dict(title='f(x)'),
+        plot_bgcolor='#f0f0f0'
+    )
+
+    fig = go.Figure(data=data_traces, layout=layout)
+    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 def parse_system(equations, variables):
     """
     Convierte una lista de ecuaciones en formato de texto a una matriz de coeficientes y un vector b.
     """
-    A = []
-    b_vector = []
-    for eq in equations:
-        # Suponiendo que las ecuaciones están en la forma "ax + by + cz = d"
-        if '=' not in eq:
-            raise ValueError(f"La ecuación '{eq}' no contiene un signo de igual '='.")
-        lhs, rhs = eq.split('=')
-        rhs = float(rhs.strip())
-        b_vector.append(rhs)
+    try:
+        num_eq = len(equations)
+        num_var = len(variables)
         
-        coeffs = []
-        for var in variables:
-            # Buscar el coeficiente de cada variable usando expresiones regulares
-            pattern = r'([+-]?\s*\d*\.?\d*)\s*' + re.escape(var)
-            match = re.search(pattern, lhs)
-            if match:
-                coeff_str = match.group(1).replace(' ', '')
-                if coeff_str in ['', '+']:
-                    coeff = 1.0
-                elif coeff_str == '-':
-                    coeff = -1.0
-                else:
-                    try:
-                        coeff = float(coeff_str)
-                    except ValueError:
-                        raise ValueError(f"Coeficiente inválido '{coeff_str}' para la variable '{var}'.")
-            else:
-                coeff = 0.0
-            coeffs.append(coeff)
-        A.append(coeffs)
-    logger.info(f"Matriz A: {A}")
-    logger.info(f"Vector b: {b_vector}")
-    return A, b_vector
-
+        if num_eq != num_var:
+            raise ValueError("El número de ecuaciones debe ser igual al número de variables.")
+        
+        A = np.zeros((num_eq, num_var), dtype=float)
+        b_vector = np.zeros(num_eq, dtype=float)
+        
+        for i, eq in enumerate(equations):
+            if '=' not in eq:
+                raise ValueError(f"La ecuación '{eq}' no contiene un signo de igual '='.")
+            
+            lhs, rhs = eq.split('=')
+            
+            # Convertir el lado derecho en un número usando SymPy para manejar fracciones
+            rhs_expr = sp.sympify(rhs.strip())
+            b_vector[i] = float(rhs_expr.evalf())
+            
+            # Parsear el lado izquierdo
+            expr = sp.sympify(preprocess_equation(lhs))
+            for j, var in enumerate(variables):
+                coeff = expr.coeff(sp.Symbol(var))
+                A[i][j] = float(coeff)
+        
+        logger.info(f"Matriz A: {A}")
+        logger.info(f"Vector b: {b_vector}")
+        
+        return A.tolist(), b_vector.tolist()
+    except Exception as e:
+        raise ValueError(f"Error al parsear el sistema de ecuaciones: {str(e)}")
 
 @main.route('/calculate', methods=['POST'])
 def calculate():
@@ -607,94 +703,46 @@ def calculate():
             except ValueError:
                 logger.error('Todos los elementos de initial_guess deben ser números.')
                 return jsonify({'error': 'Todos los elementos de initial_guess deben ser números.'}), 400
+
         elif method in ['trapezoidal', 'simpson']:
-            # Métodos de Integración Definida
+            # Validar los parámetros para integración
             if 'equation' not in data or 'a' not in data or 'b' not in data or 'n' not in data:
                 logger.error('Faltan los campos: equation, a, b y/o n para el método de integración.')
                 return jsonify({'error': 'Faltan los campos: equation, a, b y/o n para el método de integración.'}), 400
 
             equation = data['equation']
-            a = data['a']
-            b = data['b']
-            n = data['n']
+            a = float(data['a'])
+            b = float(data['b'])
+            n = int(data['n'])
 
+            # Validar la ecuación y convertirla a función y expresión simbólica
             try:
-                f = parse_equation(equation)
+                expr, f = parse_equation(equation)
             except ValueError as ve:
                 logger.error(str(ve))
                 return jsonify({'error': str(ve)}), 400
 
-            if method == 'simpson' and n % 2 != 0:
-                logger.error('El número de subintervalos (n) debe ser par para el método de Simpson.')
-                return jsonify({'error': 'El número de subintervalos (n) debe ser par para el método de Simpson.'}), 400
-
-            # Calcular la integral
+            # Calcular el área y preparar la gráfica
             try:
                 if method == 'trapezoidal':
-                    area, error = trapezoidal_method(f, a, b, n)
+                    area, trapezoids = trapezoidal_method(f, a, b, n)
+                    estimatedError = calculate_trapezoidal_error(expr, a, b, n)  # Calcular el error
+                    plot_json = render_integration_plot(f, a, b, n, 'trapezoidal', trapezoids)
                 elif method == 'simpson':
-                    area, error = simpson_method(f, a, b, n)
-            except Exception as e:
-                logger.error(f"Error al calcular la integral: {str(e)}")
-                return jsonify({'error': f"Error al calcular la integral: {str(e)}"}), 400
+                    area, parabolas = simpson_method(f, a, b, n)
+                    estimatedError = calculate_simpson_error(expr, a, b, n)  # Calcular el error
 
-            # Preparar la gráfica
-            try:
-                x_vals = np.linspace(a, b, 1000)
-                y_vals = f(x_vals)
-
-                function_trace = go.Scatter(
-                    x=x_vals,
-                    y=y_vals,
-                    mode='lines',
-                    name='f(x)',
-                    line=dict(color='blue'),
-                    hoverinfo='none'
-                )
-
-                data_traces = [function_trace]
-
-                # Para el método trapezoidal, dibujar los trapecios
-                trapezoids = []
-                if method == 'trapezoidal':
-                    xi = np.linspace(a, b, n + 1)
-                    yi = f(xi)
-                    for i in range(n):
-                        trapezoid_trace = go.Scatter(
-                            x=[xi[i], xi[i+1], xi[i+1], xi[i], xi[i]],
-                            y=[0, 0, yi[i+1], yi[i], 0],
-                            fill='toself',
-                            fillcolor='rgba(255, 165, 0, 0.3)',
-                            line=dict(color='rgba(255, 165, 0, 0)'),
-                            showlegend=False,
-                            hoverinfo='none'
-                        )
-                        data_traces.append(trapezoid_trace)
-
-                layout = go.Layout(
-                    title='Gráfica de la Integral Definida',
-                    xaxis=dict(title='x'),
-                    yaxis=dict(title='f(x)'),
-                    plot_bgcolor='#f0f0f0',
-                    paper_bgcolor='#ffffff',
-                    hovermode='closest'
-                )
-
-                fig = go.Figure(data=data_traces, layout=layout)
-                graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+                    plot_json = render_integration_plot(f, a, b, n, 'simpson', parabolas)
 
                 response = {
-                    'area': area,
-                    'error': error if error else 0.0,
-                    'plot_json': graphJSON
+                    'method': method,
+                    'area': round(area, 6),
+                    'estimatedError': round(estimatedError, 6),  # Incluir el error en la respuesta
+                    'plot_json': plot_json
                 }
-
-                if method == 'trapezoidal':
-                    response['trapezoids'] = trapezoids
-
+                return jsonify(response)
             except Exception as e:
-                logger.error(f"Error al generar la gráfica para la integral: {str(e)}")
-                return jsonify({'error': f"Error al generar la gráfica para la integral: {str(e)}"}), 400
+                return jsonify({'error': f"Error en el cálculo: {str(e)}"}), 400
 
         else:
             # Métodos para una sola ecuación
@@ -704,7 +752,7 @@ def calculate():
 
             equation = data['equation']
             try:
-                f = parse_equation(equation)
+                expr, f = parse_equation(equation)
             except ValueError as ve:
                 logger.error(str(ve))
                 return jsonify({'error': str(ve)}), 400
@@ -808,7 +856,7 @@ def calculate():
             # Generar gráfica para sistemas de ecuaciones
             try:
                 # Función mejorada para crear layouts
-                def create_enhanced_layout(title, x_label='x', y_label='f(x)'):
+                def create_enhanced_layout(title, x_label='Iteración', y_label='Valor de la Variable'):
                     return go.Layout(
                         title=dict(
                             text=title,
@@ -951,15 +999,19 @@ def calculate():
                     updatemenus=[{
                         "buttons": [
                             {
-                                "args": [None, {"frame": {"duration": 500, "redraw": True},
-                                                "fromcurrent": True}],
+                                "args": [None, {
+                                    "frame": {"duration": 500, "redraw": True},
+                                    "fromcurrent": True
+                                }],
                                 "label": "▶ Play",
                                 "method": "animate"
                             },
                             {
-                                "args": [[None], {"frame": {"duration": 0, "redraw": False},
-                                                  "mode": "immediate",
-                                                  "transition": {"duration": 0}}],
+                                "args": [[None], {
+                                    "frame": {"duration": 0, "redraw": False},
+                                    "mode": "immediate",
+                                    "transition": {"duration": 0}
+                                }],
                                 "label": "⏸ Pause",
                                 "method": "animate"
                             }
@@ -972,6 +1024,34 @@ def calculate():
                         "y": 1.1,
                         "xanchor": "right",
                         "yanchor": "top"
+                    }],
+                    sliders=[{
+                        "active": 0,
+                        "yanchor": "top",
+                        "xanchor": "left",
+                        "currentvalue": {
+                            "font": {"size": 16},
+                            "prefix": "Iteración: ",
+                            "visible": True,
+                            "xanchor": "right"
+                        },
+                        "transition": {"duration": 300, "easing": "cubic-in-out"},
+                        "pad": {"b": 10, "t": 50},
+                        "len": 0.9,
+                        "x": 0.1,
+                        "y": 0,
+                        "steps": [
+                            {
+                                "args": [
+                                    [str(k)],
+                                    {"frame": {"duration": 700, "redraw": True},
+                                     "mode": "immediate",
+                                     "transition": {"duration": 300}}
+                                ],
+                                "label": f"Iteración {k + 1}",
+                                "method": "animate"
+                            } for k in range(len(frames))
+                        ]
                     }]
                 )
 
@@ -1121,7 +1201,7 @@ def calculate():
                     for idx, iter_data in enumerate(iteration_history):
                         if method == 'fixed_point':
                             current_x = iter_data['x']
-                            current_y = g(current_x)
+                            current_y = f(current_x)  # Usar f(x) para la gráfica
                         else:
                             current_x = iter_data['x']
                             current_y = f(current_x)
@@ -1309,7 +1389,7 @@ def find_valid_interval_route():
             return jsonify({'error': 'Falta el campo: equation'}), 400
 
         equation = data['equation']
-        f = parse_equation(equation)
+        expr, f = parse_equation(equation)
 
         # Buscar intervalo válido
         a, b = find_valid_interval(f)

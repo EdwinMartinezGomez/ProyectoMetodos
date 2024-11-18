@@ -593,6 +593,189 @@ def render_integration_plot(f, a, b, n, method, extra_shapes):
 
     fig = go.Figure(data=data_traces, layout=layout)
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+def broyden_method(F, J_initial, x0, max_iter=100, tol=1e-6, iteration_history=None):
+    """
+    Implementación del Método de Broyden para sistemas de ecuaciones no lineales.
+
+    Args:
+        F: Función que toma un vector x y devuelve F(x).
+        J_initial: Matriz jacobiana inicial.
+        x0: Estimación inicial (lista o array).
+        max_iter: Número máximo de iteraciones.
+        tol: Tolerancia para el criterio de convergencia.
+        iteration_history: Lista para almacenar el historial de iteraciones.
+
+    Returns:
+        x: Solución encontrada.
+        converged: Booleano indicando si el método convergió.
+        iterations: Número de iteraciones realizadas.
+    """
+    x = np.array(x0, dtype=float)
+    J = np.array(J_initial, dtype=float)
+    converged = False
+
+    for i in range(1, max_iter + 1):
+        try:
+            # Resolver J * delta = -F(x)
+            delta = np.linalg.solve(J, -F(x))
+        except np.linalg.LinAlgError:
+            logger.error(f"Jacobian singular en la iteración {i}.")
+            return None, False, i
+
+        x_new = x + delta
+        F_new = F(x_new)
+        error = np.linalg.norm(delta, ord=np.inf)
+
+        if iteration_history is not None:
+            iteration_history.append({
+                'iteration': i,
+                'x': [round(float(val), 6) for val in x_new],
+                'F(x)': [round(float(val), 6) for val in F_new],
+                'error': round(float(error), 6)
+            })
+
+        logger.info(f"Broyden Iteración {i}: x = {x_new}, F(x) = {F_new}, error = {error}")
+
+        if error < tol:
+            converged = True
+            x = x_new
+            break
+
+        # Actualizar la matriz Jacobiana usando la actualización de Broyden
+        y = F_new - F(x)
+        delta = delta.reshape(-1, 1)
+        y = y.reshape(-1, 1)
+        J_delta = J @ delta
+        denom = (delta.T @ delta)[0, 0]
+        if denom == 0:
+            logger.error(f"Denominador cero en la actualización de Jacobiano en la iteración {i}.")
+            return None, False, i
+        J += ((y - J_delta) @ delta.T) / denom
+
+        x = x_new
+
+    return x.tolist(), converged, i
+def evaluate_system(equations, variables):
+    def F(x):
+        subs = {var: val for var, val in zip(variables, x)}
+        return np.array([float(eq.evalf(subs=subs)) for eq in equations], dtype=float)
+    return F
+
+def compute_initial_jacobian(equations, variables, x0):
+    """
+    Calcula la matriz Jacobiana inicial en el punto x0.
+
+    Args:
+        equations: Lista de expresiones SymPy que representan las ecuaciones.
+        variables: Lista de símbolos SymPy que representan las variables.
+        x0: Estimación inicial (lista o array).
+
+    Returns:
+        J_initial: Matriz Jacobiana evaluada en x0.
+    """
+    J = []
+    for eq in equations:
+        row = []
+        for var in variables:
+            derivative = sp.diff(eq, var)
+            derivative_func = sp.lambdify(variables, derivative, modules=['numpy'])
+            row.append(derivative_func(*x0))
+        J.append(row)
+    return np.array(J, dtype=float)
+def render_broyden_plot(iteration_history, variables):
+    """
+    Genera una gráfica animada de la convergencia del Método de Broyden.
+
+    Args:
+        iteration_history: Lista con el historial de iteraciones.
+        variables: Lista de nombres de variables.
+
+    Returns:
+        plot_json: JSON para Plotly.
+    """
+    data_traces = []
+    frames = []
+    iterations = [entry['iteration'] for entry in iteration_history]
+
+    # Colores para cada variable
+    colors = ['#2ecc71', '#3498db', '#e74c3c', '#9b59b6', '#f1c40f', '#1abc9c']
+
+    # Crear trazas iniciales (vacías)
+    for idx, var in enumerate(variables):
+        trace = go.Scatter(
+            x=[],
+            y=[],
+            mode='lines+markers',
+            name=var,
+            line=dict(color=colors[idx % len(colors)], width=2)
+        )
+        data_traces.append(trace)
+
+    # Crear frames para cada iteración
+    for i, entry in enumerate(iteration_history):
+        frame_data = []
+        for idx, var in enumerate(variables):
+            frame_data.append(
+                go.Scatter(
+                    x=iterations[:i+1],
+                    y=[iter_val for iter_val in [h['x'][idx] for h in iteration_history[:i+1]]],
+                    mode='lines+markers',
+                    name=var,
+                    line=dict(color=colors[idx % len(colors)], width=2)
+                )
+            )
+        frames.append(go.Frame(data=frame_data, name=str(i)))
+
+    # Layout con controles de animación
+    layout = go.Layout(
+        title='Convergencia del Método de Broyden',
+        xaxis=dict(title='Iteración', range=[min(iterations), max(iterations)]),
+        yaxis=dict(title='Valor de la Variable'),
+        plot_bgcolor='#f0f0f0',
+        updatemenus=[
+            dict(
+                type="buttons",
+                showactive=False,
+                y=1.15,
+                x=1.05,
+                xanchor="right",
+                yanchor="top",
+                pad=dict(t=0, r=10),
+                buttons=[
+                    dict(label="▶ Play",
+                         method="animate",
+                         args=[None, {"frame": {"duration": 700, "redraw": True},
+                                      "fromcurrent": True, "transition": {"duration": 300}}]),
+                    dict(label="⏸ Pause",
+                         method="animate",
+                         args=[[None], {"frame": {"duration": 0, "redraw": False},
+                                        "mode": "immediate",
+                                        "transition": {"duration": 0}}])
+                ]
+            )
+        ],
+        sliders=[
+            dict(
+                active=0,
+                currentvalue={"prefix": "Iteración: "},
+                pad={"t": 50},
+                steps=[
+                    dict(method='animate',
+                         args=[[str(k)],
+                               {"frame": {"duration": 700, "redraw": True},
+                                "mode": "immediate",
+                                "transition": {"duration": 300}}],
+                         label=str(k+1))
+                    for k in range(len(frames))
+                ]
+            )
+        ]
+    )
+
+    fig = go.Figure(data=data_traces, layout=layout, frames=frames)
+    plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    return plot_json
+
 
 def parse_system(equations, variables):
     """
@@ -630,7 +813,6 @@ def parse_system(equations, variables):
         return A.tolist(), b_vector.tolist()
     except Exception as e:
         raise ValueError(f"Error al parsear el sistema de ecuaciones: {str(e)}")
-
 @main.route('/calculate', methods=['POST'])
 def calculate():
     try:
@@ -658,12 +840,12 @@ def calculate():
             logger.error('El número de iteraciones debe ser entre 1 y 1000.')
             return jsonify({'error': 'El número de iteraciones debe ser entre 1 y 1000.'}), 400
 
-        if method not in ['bisection', 'newton', 'secant', 'fixed_point', 'jacobi', 'gauss_seidel', 'trapezoidal', 'simpson']:
+        if method not in ['bisection', 'newton', 'secant', 'fixed_point', 'jacobi', 'gauss_seidel', 'broyden', 'trapezoidal', 'simpson']:
             logger.error('Método no válido.')
             return jsonify({'error': 'Método no válido.'}), 400
 
         # Determinar si se trata de una sola ecuación o un sistema
-        is_system = method in ['jacobi', 'gauss_seidel']
+        is_system = method in ['jacobi', 'gauss_seidel', 'broyden']  # Añadido 'broyden'
 
         if is_system:
             # Validar campos para sistemas
@@ -682,12 +864,6 @@ def calculate():
                 logger.error('Las ecuaciones y variables no pueden estar vacías.')
                 return jsonify({'error': 'Las ecuaciones y variables no pueden estar vacías.'}), 400
 
-            try:
-                A, b = parse_system(equations, variables)
-            except ValueError as ve:
-                logger.error(str(ve))
-                return jsonify({'error': str(ve)}), 400
-
             # Inicializar la estimación inicial
             if 'initial_guess' not in data:
                 logger.error('Falta el campo: initial_guess')
@@ -703,6 +879,98 @@ def calculate():
             except ValueError:
                 logger.error('Todos los elementos de initial_guess deben ser números.')
                 return jsonify({'error': 'Todos los elementos de initial_guess deben ser números.'}), 400
+
+            # Inicializar el historial de iteraciones
+            iteration_history = []
+
+            if method in ['jacobi', 'gauss_seidel']:
+                try:
+                    A, b = parse_system(equations, variables)
+                except ValueError as ve:
+                    logger.error(str(ve))
+                    return jsonify({'error': str(ve)}), 400
+
+                A_matrix = np.array(A, dtype=float)
+                b_vector = np.array(b, dtype=float)
+
+                if method == 'jacobi':
+                    try:
+                        root, converged, iterations = jacobi_method(
+                            A_matrix, b_vector, x0, max_iter, tol=1e-6, iteration_history=iteration_history
+                        )
+                    except Exception as e:
+                        logger.error(f"Error en el método Jacobi: {str(e)}")
+                        return jsonify({'error': f"Error en el método Jacobi: {str(e)}"}), 400
+
+                elif method == 'gauss_seidel':
+                    try:
+                        root, converged, iterations = gauss_seidel_method(
+                            A_matrix, b_vector, x0, max_iter, tol=1e-6, iteration_history=iteration_history
+                        )
+                    except Exception as e:
+                        logger.error(f"Error en el método Gauss-Seidel: {str(e)}")
+                        return jsonify({'error': f"Error en el método Gauss-Seidel: {str(e)}"}), 400
+
+                # Generar gráfica para sistemas de ecuaciones
+                try:
+                    plot_json = render_broyden_plot(iteration_history, variables)
+                    response = {
+                        'solution': {var: round(float(root[i]), 6) for i, var in enumerate(variables)},
+                        'converged': converged,
+                        'iterations': iterations,
+                        'iteration_history': iteration_history,
+                        'plot_json': plot_json
+                    }
+                except Exception as e:
+                    logger.error(f"Error al generar la gráfica para el sistema: {str(e)}")
+                    return jsonify({'error': f"Error al generar la gráfica para el sistema: {str(e)}"}), 400
+
+            elif is_system and method == 'broyden':
+                try:
+                    # Parsear las ecuaciones como expresiones SymPy
+                    exprs = []
+                    for eq in equations:
+                        if '=' not in eq:
+                            raise ValueError(f"La ecuación '{eq}' no contiene un signo de igual '='.")
+                        lhs, rhs = eq.split('=')
+                        expr = sp.sympify(preprocess_equation(lhs)) - sp.sympify(preprocess_equation(rhs))
+                        exprs.append(expr)
+
+                    variables_symbols = [sp.Symbol(var) for var in variables]
+
+                    # Definir F(x)
+                    F = evaluate_system(exprs, variables_symbols)
+
+                    # Calcular la matriz Jacobiana inicial en x0
+                    J_initial = compute_initial_jacobian(exprs, variables_symbols, x0)
+
+                    # Ejecutar el Método de Broyden
+                    root, converged, iterations = broyden_method(F, J_initial, x0, max_iter, tol=1e-6, iteration_history=iteration_history)
+
+                    if not converged:
+                        logger.error('El método de Broyden no convergió.')
+                        return jsonify({'error': 'El método de Broyden no convergió.'}), 400
+
+                    # Generar gráfica para sistemas de ecuaciones
+                    try:
+                        plot_json = render_broyden_plot(iteration_history, variables)
+                        response = {
+                            'solution': {var: round(float(root[i]), 6) for i, var in enumerate(variables)},
+                            'converged': converged,
+                            'iterations': iterations,
+                            'iteration_history': iteration_history,
+                            'plot_json': plot_json
+                        }
+                    except Exception as e:
+                        logger.error(f"Error al generar la gráfica para el sistema: {str(e)}")
+                        return jsonify({'error': f"Error al generar la gráfica para el sistema: {str(e)}"}), 400
+
+                except np.linalg.LinAlgError as e:
+                    logger.error(f"Error al resolver el sistema lineal: {str(e)}")
+                    return jsonify({'error': 'Error al resolver el sistema lineal durante el método de Broyden.'}), 400
+                except Exception as e:
+                    logger.error(f"Error en el método de Broyden: {str(e)}")
+                    return jsonify({'error': f"Error en el método de Broyden: {str(e)}"}), 400
 
         elif method in ['trapezoidal', 'simpson']:
             # Validar los parámetros para integración
@@ -760,32 +1028,37 @@ def calculate():
             iteration_history = []
 
             if method == 'bisection':
-                # Validación para Bisección
-                if 'a' not in data or 'b' not in data:
-                    logger.error(f'Faltan los campos: a y/o b para el método {method}')
-                    return jsonify({'error': f'Faltan los campos: a y/o b para el método {method}'}), 400
                 try:
-                    a = float(data['a'])
-                    b = float(data['b'])
-                except ValueError:
-                    logger.error('Los límites del intervalo deben ser números válidos.')
-                    return jsonify({'error': 'Los límites del intervalo deben ser números válidos.'}), 400
-
-                if a >= b:
-                    logger.error('El límite inferior (a) debe ser menor que el superior (b).')
-                    return jsonify({'error': 'El límite inferior (a) debe ser menor que el superior (b).'}), 400
-
-                # Validar si f(a) y f(b) cambian de signo
-                fa = f(a)
-                fb = f(b)
-                if fa * fb >= 0:
-                    # Intentar encontrar un intervalo válido automáticamente
+                    # Validación para Bisección
+                    if 'a' not in data or 'b' not in data:
+                        logger.error(f'Faltan los campos: a y/o b para el método {method}')
+                        return jsonify({'error': f'Faltan los campos: a y/o b para el método {method}'}), 400
                     try:
-                        a, b = find_valid_interval(f)
-                        logger.info(f"Intervalo ajustado automáticamente a: a={a}, b={b}")
-                    except Exception as e:
-                        logger.error(f"Error al validar el intervalo: {str(e)}")
-                        return jsonify({'error': str(e)}), 400
+                        a = float(data['a'])
+                        b = float(data['b'])
+                    except ValueError:
+                        logger.error('Los límites del intervalo deben ser números válidos.')
+                        return jsonify({'error': 'Los límites del intervalo deben ser números válidos.'}), 400
+
+                    if a >= b:
+                        logger.error('El límite inferior (a) debe ser menor que el superior (b).')
+                        return jsonify({'error': 'El límite inferior (a) debe ser menor que el superior (b).'}), 400
+
+                    # Validar si f(a) y f(b) cambian de signo
+                    fa = f(a)
+                    fb = f(b)
+                    if fa * fb >= 0:
+                        # Intentar encontrar un intervalo válido automáticamente
+                        try:
+                            a, b = find_valid_interval(f)
+                            logger.info(f"Intervalo ajustado automáticamente a: a={a}, b={b}")
+                        except Exception as e:
+                            logger.error(f"Error al validar el intervalo: {str(e)}")
+                            return jsonify({'error': str(e)}), 400
+
+                except Exception as e:
+                    logger.error(f"Error en la preparación para Bisección: {str(e)}")
+                    return jsonify({'error': f"Error en la preparación para Bisección: {str(e)}"}), 400
 
             elif method == 'secant':
                 # Validación para Secante
@@ -833,241 +1106,243 @@ def calculate():
         iterations = 0
 
         if is_system:
-            A_matrix = np.array(A, dtype=float)
-            b_vector = np.array(b, dtype=float)
-            if method == 'jacobi':
-                try:
-                    root, converged, iterations = jacobi_method(
-                        A_matrix, b_vector, x0, max_iter, tol=1e-6, iteration_history=iteration_history
-                    )
-                except Exception as e:
-                    logger.error(f"Error en el método Jacobi: {str(e)}")
-                    return jsonify({'error': f"Error en el método Jacobi: {str(e)}"}), 400
-
-            elif method == 'gauss_seidel':
-                try:
-                    root, converged, iterations = gauss_seidel_method(
-                        A_matrix, b_vector, x0, max_iter, tol=1e-6, iteration_history=iteration_history
-                    )
-                except Exception as e:
-                    logger.error(f"Error en el método Gauss-Seidel: {str(e)}")
-                    return jsonify({'error': f"Error en el método Gauss-Seidel: {str(e)}"}), 400
-
-            # Generar gráfica para sistemas de ecuaciones
-            try:
-                # Función mejorada para crear layouts
-                def create_enhanced_layout(title, x_label='Iteración', y_label='Valor de la Variable'):
-                    return go.Layout(
-                        title=dict(
-                            text=title,
-                            x=0.5,
-                            xanchor='center',
-                            font=dict(
-                                size=24,
-                                family='Arial, sans-serif',
-                                color='#2c3e50'
-                            )
-                        ),
-                        xaxis=dict(
-                            title=dict(
-                                text=x_label,
-                                font=dict(size=16, family='Arial, sans-serif')
-                            ),
-                            gridcolor='#e0e0e0',
-                            zerolinecolor='#2c3e50',
-                            zerolinewidth=2
-                        ),
-                        yaxis=dict(
-                            title=dict(
-                                text=y_label,
-                                font=dict(size=16, family='Arial, sans-serif')
-                            ),
-                            gridcolor='#e0e0e0',
-                            zerolinecolor='#2c3e50',
-                            zerolinewidth=2
-                        ),
-                        plot_bgcolor='#ffffff',
-                        paper_bgcolor='#ffffff',
-                        hovermode='closest',
-                        showlegend=True,
-                        legend=dict(
-                            x=1.05,
-                            y=1,
-                            bgcolor='rgba(255, 255, 255, 0.9)',
-                            bordercolor='#2c3e50'
-                        ),
-                        margin=dict(l=80, r=80, t=100, b=80)
-                    )
-
-                variables = data['variables']
-                iterations_numbers = list(range(1, len(iteration_history) + 1))
-                plot_traces = []
-
-                # Paleta de colores mejorada
-                colors = ['#2ecc71', '#3498db', '#9b59b6', '#e74c3c', '#f1c40f', '#1abc9c']
-
-                for var_idx, var in enumerate(variables):
-                    var_values = [entry['x'][var_idx] for entry in iteration_history]
-
-                    # Trace principal con línea y marcadores
-                    trace = go.Scatter(
-                        x=iterations_numbers,
-                        y=var_values,
-                        mode='lines+markers',
-                        name=var,
-                        line=dict(
-                            color=colors[var_idx % len(colors)],
-                            width=3,
-                            dash='solid'
-                        ),
-                        marker=dict(
-                            size=8,
-                            symbol='circle',
-                            line=dict(width=2, color='white')
-                        ),
-                        hovertemplate=f"{var}: %{{y:.6f}}<br>Iteración: %{{x}}<extra></extra>"
-                    )
-                    plot_traces.append(trace)
-
-                    # Trace de tendencia
-                    trace_trend = go.Scatter(
-                        x=iterations_numbers,
-                        y=var_values,
-                        mode='lines',
-                        name=f'{var} (tendencia)',
-                        line=dict(
-                            color=colors[var_idx % len(colors)],
-                            width=1,
-                            dash='dot'
-                        ),
-                        opacity=0.3,
-                        showlegend=False
-                    )
-                    plot_traces.append(trace_trend)
-
-                layout = create_enhanced_layout(
-                    'Convergencia de Variables por Iteración',
-                    'Iteración',
-                    'Valor de la Variable'
-                )
-
-                # Agregar animación de aparición gradual
-                frames = []
-                for i in range(1, len(iterations_numbers) + 1):
-                    frame_data = []
-                    for var_idx in range(len(variables)):
-                        var_values = [entry['x'][var_idx] for entry in iteration_history[:i]]
-                        frame_data.append(
-                            go.Scatter(
-                                x=iterations_numbers[:i],
-                                y=var_values,
-                                mode='lines+markers',
-                                name=variables[var_idx],
-                                line=dict(
-                                    color=colors[var_idx % len(colors)],
-                                    width=3,
-                                    dash='solid'
-                                ),
-                                marker=dict(
-                                    size=8,
-                                    symbol='circle',
-                                    line=dict(width=2, color='white')
-                                ),
-                                hovertemplate=f"{variables[var_idx]}: %{{y:.6f}}<br>Iteración: %{{x}}<extra></extra>"
-                            )
+            if method in ['jacobi', 'gauss_seidel']:
+                A_matrix = np.array(A, dtype=float)
+                b_vector = np.array(b, dtype=float)
+                if method == 'jacobi':
+                    try:
+                        root, converged, iterations = jacobi_method(
+                            A_matrix, b_vector, x0, max_iter, tol=1e-6, iteration_history=iteration_history
                         )
-                        # Agregar trace de tendencia en cada frame
-                        frame_data.append(
-                            go.Scatter(
-                                x=iterations_numbers[:i],
-                                y=var_values,
-                                mode='lines',
-                                name=f'{variables[var_idx]} (tendencia)',
-                                line=dict(
-                                    color=colors[var_idx % len(colors)],
-                                    width=1,
-                                    dash='dot'
-                                ),
-                                opacity=0.3,
-                                showlegend=False
-                            )
-                        )
-                    frames.append(go.Frame(data=frame_data, name=f'frame{i}'))
+                    except Exception as e:
+                        logger.error(f"Error en el método Jacobi: {str(e)}")
+                        return jsonify({'error': f"Error en el método Jacobi: {str(e)}"}), 400
 
-                # Agregar controles de animación
-                layout.update(
-                    updatemenus=[{
-                        "buttons": [
-                            {
-                                "args": [None, {
-                                    "frame": {"duration": 500, "redraw": True},
-                                    "fromcurrent": True
-                                }],
-                                "label": "▶ Play",
-                                "method": "animate"
+                elif method == 'gauss_seidel':
+                    try:
+                        root, converged, iterations = gauss_seidel_method(
+                            A_matrix, b_vector, x0, max_iter, tol=1e-6, iteration_history=iteration_history
+                        )
+                    except Exception as e:
+                        logger.error(f"Error en el método Gauss-Seidel: {str(e)}")
+                        return jsonify({'error': f"Error en el método Gauss-Seidel: {str(e)}"}), 400
+
+                # Generar gráfica para sistemas de ecuaciones
+                try:
+                    # Función mejorada para crear layouts
+                    def create_enhanced_layout(title, x_label='Iteración', y_label='Valor de la Variable'):
+                        return go.Layout(
+                            title=dict(
+                                text=title,
+                                x=0.5,
+                                xanchor='center',
+                                font=dict(
+                                    size=24,
+                                    family='Arial, sans-serif',
+                                    color='#2c3e50'
+                                )
+                            ),
+                            xaxis=dict(
+                                title=dict(
+                                    text=x_label,
+                                    font=dict(size=16, family='Arial, sans-serif')
+                                ),
+                                gridcolor='#e0e0e0',
+                                zerolinecolor='#2c3e50',
+                                zerolinewidth=2
+                            ),
+                            yaxis=dict(
+                                title=dict(
+                                    text=y_label,
+                                    font=dict(size=16, family='Arial, sans-serif')
+                                ),
+                                gridcolor='#e0e0e0',
+                                zerolinecolor='#2c3e50',
+                                zerolinewidth=2
+                            ),
+                            plot_bgcolor='#ffffff',
+                            paper_bgcolor='#ffffff',
+                            hovermode='closest',
+                            showlegend=True,
+                            legend=dict(
+                                x=1.05,
+                                y=1,
+                                bgcolor='rgba(255, 255, 255, 0.9)',
+                                bordercolor='#2c3e50'
+                            ),
+                            margin=dict(l=80, r=80, t=100, b=80)
+                        )
+
+                    variables = data['variables']
+                    iterations_numbers = list(range(1, len(iteration_history) + 1))
+                    plot_traces = []
+
+                    # Paleta de colores mejorada
+                    colors = ['#2ecc71', '#3498db', '#9b59b6', '#e74c3c', '#f1c40f', '#1abc9c']
+
+                    for var_idx, var in enumerate(variables):
+                        var_values = [entry['x'][var_idx] for entry in iteration_history]
+                        trace = go.Scatter(
+                            x=iterations_numbers,
+                            y=var_values,
+                            mode='lines+markers',
+                            name=var,
+                            line=dict(
+                                color=colors[var_idx % len(colors)],
+                                width=3,
+                                dash='solid'
+                            ),
+                            marker=dict(
+                                size=8,
+                                symbol='circle',
+                                line=dict(width=2, color='white')
+                            ),
+                            hovertemplate=f"{var}: %{{y:.6f}}<br>Iteración: %{{x}}<extra></extra>"
+                        )
+                        plot_traces.append(trace)
+
+                        # Trace de tendencia
+                        trace_trend = go.Scatter(
+                            x=iterations_numbers,
+                            y=var_values,
+                            mode='lines',
+                            name=f'{var} (tendencia)',
+                            line=dict(
+                                color=colors[var_idx % len(colors)],
+                                width=1,
+                                dash='dot'
+                            ),
+                            opacity=0.3,
+                            showlegend=False
+                        )
+                        plot_traces.append(trace_trend)
+
+                    layout = create_enhanced_layout(
+                        'Convergencia de Variables por Iteración',
+                        'Iteración',
+                        'Valor de la Variable'
+                    )
+
+                    # Agregar animación de aparición gradual
+                    frames = []
+                    for i in range(1, len(iterations_numbers) + 1):
+                        frame_data = []
+                        for var_idx in range(len(variables)):
+                            var_values = [entry['x'][var_idx] for entry in iteration_history[:i]]
+                            frame_data.append(
+                                go.Scatter(
+                                    x=iterations_numbers[:i],
+                                    y=var_values,
+                                    mode='lines+markers',
+                                    name=variables[var_idx],
+                                    line=dict(
+                                        color=colors[var_idx % len(colors)],
+                                        width=3,
+                                        dash='solid'
+                                    ),
+                                    marker=dict(
+                                        size=8,
+                                        symbol='circle',
+                                        line=dict(width=2, color='white')
+                                    ),
+                                    hovertemplate=f"{variables[var_idx]}: %{{y:.6f}}<br>Iteración: %{{x}}<extra></extra>"
+                                )
+                            )
+                            # Agregar trace de tendencia en cada frame
+                            frame_data.append(
+                                go.Scatter(
+                                    x=iterations_numbers[:i],
+                                    y=var_values,
+                                    mode='lines',
+                                    name=f'{variables[var_idx]} (tendencia)',
+                                    line=dict(
+                                        color=colors[var_idx % len(colors)],
+                                        width=1,
+                                        dash='dot'
+                                    ),
+                                    opacity=0.3,
+                                    showlegend=False
+                                )
+                            )
+                        frames.append(go.Frame(
+                            data=frame_data,
+                            name=f'frame{i}'
+                        ))
+
+                    # Agregar controles de animación
+                    layout.update(
+                        updatemenus=[{
+                            "buttons": [
+                                {
+                                    "args": [None, {
+                                        "frame": {"duration": 500, "redraw": True},
+                                        "fromcurrent": True
+                                    }],
+                                    "label": "▶ Play",
+                                    "method": "animate"
+                                },
+                                {
+                                    "args": [[None], {
+                                        "frame": {"duration": 0, "redraw": False},
+                                        "mode": "immediate",
+                                        "transition": {"duration": 0}
+                                    }],
+                                    "label": "⏸ Pause",
+                                    "method": "animate"
+                                }
+                            ],
+                            "direction": "left",
+                            "pad": {"r": 10, "t": 10},
+                            "showactive": False,
+                            "type": "buttons",
+                            "x": 0.1,
+                            "y": 1.1,
+                            "xanchor": "right",
+                            "yanchor": "top"
+                        }],
+                        sliders=[{
+                            "active": 0,
+                            "yanchor": "top",
+                            "xanchor": "left",
+                            "currentvalue": {
+                                "font": {"size": 16},
+                                "prefix": "Iteración: ",
+                                "visible": True,
+                                "xanchor": "right"
                             },
-                            {
-                                "args": [[None], {
-                                    "frame": {"duration": 0, "redraw": False},
-                                    "mode": "immediate",
-                                    "transition": {"duration": 0}
-                                }],
-                                "label": "⏸ Pause",
-                                "method": "animate"
-                            }
-                        ],
-                        "direction": "left",
-                        "pad": {"r": 10, "t": 10},
-                        "showactive": False,
-                        "type": "buttons",
-                        "x": 0.1,
-                        "y": 1.1,
-                        "xanchor": "right",
-                        "yanchor": "top"
-                    }],
-                    sliders=[{
-                        "active": 0,
-                        "yanchor": "top",
-                        "xanchor": "left",
-                        "currentvalue": {
-                            "font": {"size": 16},
-                            "prefix": "Iteración: ",
-                            "visible": True,
-                            "xanchor": "right"
-                        },
-                        "transition": {"duration": 300, "easing": "cubic-in-out"},
-                        "pad": {"b": 10, "t": 50},
-                        "len": 0.9,
-                        "x": 0.1,
-                        "y": 0,
-                        "steps": [
-                            {
-                                "args": [
-                                    [str(k)],
-                                    {"frame": {"duration": 700, "redraw": True},
-                                     "mode": "immediate",
-                                     "transition": {"duration": 300}}
-                                ],
-                                "label": f"Iteración {k + 1}",
-                                "method": "animate"
-                            } for k in range(len(frames))
-                        ]
-                    }]
-                )
+                            "transition": {"duration": 300, "easing": "cubic-in-out"},
+                            "pad": {"b": 10, "t": 50},
+                            "len": 0.9,
+                            "x": 0.1,
+                            "y": 0,
+                            "steps": [
+                                {
+                                    "args": [
+                                        [str(k)],
+                                        {"frame": {"duration": 700, "redraw": True},
+                                         "mode": "immediate",
+                                         "transition": {"duration": 300}}
+                                    ],
+                                    "label": f"Iteración {k + 1}",
+                                    "method": "animate"
+                                } for k in range(len(frames))
+                            ]
+                        }]
+                    )
 
-                fig = go.Figure(data=plot_traces, layout=layout, frames=frames)
+                    fig = go.Figure(data=plot_traces, layout=layout, frames=frames)
 
-                response = {
-                    'solution': {var: round(float(root[i]), 6) for i, var in enumerate(variables)},
-                    'converged': converged,
-                    'iterations': iterations,
-                    'iteration_history': iteration_history,
-                    'plot_json': json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-                }
+                    response = {
+                        'solution': {var: round(float(root[i]), 6) for i, var in enumerate(variables)},
+                        'converged': converged,
+                        'iterations': iterations,
+                        'iteration_history': iteration_history,
+                        'plot_json': json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+                    }
 
-            except Exception as e:
-                logger.error(f"Error al generar la gráfica para el sistema: {str(e)}")
-                return jsonify({'error': f"Error al generar la gráfica para el sistema: {str(e)}"}), 400
+                except Exception as e:
+                    logger.error(f"Error al generar la gráfica para el sistema: {str(e)}")
+                    return jsonify({'error': f"Error al generar la gráfica para el sistema: {str(e)}"}), 400
 
         else:
             # Métodos para una sola ecuación
@@ -1218,7 +1493,7 @@ def calculate():
                             marker=dict(color='red', size=10),
                             text=[f"{idx + 1}"],
                             textposition='top center',
-                            hoverinfo='x+y'
+                            hovertemplate=f"Iteración {idx + 1}: x = {current_x:.6f}, f(x) = {current_y:.6f}<extra></extra>"
                         )
 
                         # Trace de rastro acumulado

@@ -5,6 +5,15 @@ from sympy.parsing.sympy_parser import (
     implicit_multiplication_application,
     convert_xor
 )
+from app.numeric_methods import Simpson as simpson
+from app.numeric_methods import Trapecio as trapecio
+from app.numeric_methods import GaussSeidel as gauss
+from app.numeric_methods import Jacobi as jacobi
+from app.numeric_methods import bisection
+from app.numeric_methods import Broyden as broyden
+from app.numeric_methods import fixed_point
+from app.numeric_methods import newton_raphson
+from app.numeric_methods import secant
 import numpy as np
 import plotly
 import plotly.graph_objs as go
@@ -308,255 +317,6 @@ def find_valid_interval(f, start=-10, end=10, num_points=1000):
     else:
         raise ValueError("No se encontró un intervalo válido donde la función cambie de signo.")
 
-# Métodos Numéricos (Bisección, Newton-Raphson, etc.)
-def bisection_method(f, a, b, max_iter, iteration_history, tol=1e-6):
-    fa = f(a)
-    fb = f(b)
-    if fa * fb >= 0:
-        raise ValueError("La función no cambia de signo en el intervalo dado.")
-
-    converged = False
-    for i in range(1, max_iter + 1):
-        c = (a + b) / 2.0
-        fc = f(c)
-        error = abs(b - a) / 2.0  # Calcula el error como la mitad del intervalo
-        iteration_history.append({
-            'iteration': i,
-            'x': round(float(c), 6),
-            'fx': round(float(fc), 6),
-            'error': round(float(error), 6)
-        })
-        logger.info(f"Bisección Iteración {i}: x = {c}, f(x) = {fc}, error = {error}")
-        if abs(fc) < tol or error < tol:
-            converged = True
-            break
-        if fa * fc < 0:
-            b = c
-            fb = fc
-        else:
-            a = c
-            fa = fc
-
-    return c, converged, i
-
-def newton_raphson(f, fprime, x0, max_iter=100, tol=1e-6):
-    iteration_history = []
-    x_prev = x0
-    for i in range(1, max_iter + 1):
-        try:
-            fx = f(x_prev)
-            fpx = fprime(x_prev)
-            if fpx == 0:
-                raise ZeroDivisionError(f"La derivada es cero en x = {x_prev}.")
-            x_next = x_prev - fx / fpx
-            error = abs(x_next - x_prev)
-            iteration_history.append({
-                'iteration': i,
-                'x': round(float(x_next), 6),
-                'fx': round(float(fx), 6),
-                'error': round(float(error), 6)
-            })
-            logger.info(f"Newton-Raphson Iteración {i}: x = {x_next}, f(x) = {fx}, error = {error}")
-            if error < tol:
-                return x_next, True, i, iteration_history
-            x_prev = x_next
-        except Exception as e:
-            logger.error(f"Error en la iteración {i} del método Newton-Raphson: {str(e)}")
-            return None, False, i, iteration_history
-    return x_prev, False, max_iter, iteration_history
-
-def secant_method(f, x0, x1, max_iter, tol=1e-6):
-    iteration_history = []
-    for i in range(1, max_iter + 1):
-        try:
-            fx0 = f(x0)
-            fx1 = f(x1)
-            if fx1 - fx0 == 0:
-                raise ZeroDivisionError("División por cero en el método Secante.")
-            x2 = x1 - fx1 * (x1 - x0) / (fx1 - fx0)
-            error = abs(x2 - x1)
-            iteration_history.append({
-                'iteration': i,
-                'x': round(float(x2), 6),
-                'fx': round(float(f(x2)), 6),
-                'error': round(float(error), 6)
-            })
-            logger.info(f"Secante Iteración {i}: x = {x2}, f(x) = {f(x2)}, error = {error}")
-            if error < tol:
-                return x2, True, i, iteration_history
-            x0, x1 = x1, x2
-        except Exception as e:
-            logger.error(f"Error en la iteración {i} del método Secante: {str(e)}")
-            return None, False, i, iteration_history
-    return x1, False, max_iter, iteration_history
-
-def fixed_point_method(g, x0, max_iter, iteration_history, tol=1e-6):
-    x_prev = x0
-    converged = False
-    for i in range(1, max_iter + 1):
-        try:
-            x_next = g(x_prev)
-            fx = x_next - x_prev  # diferencia entre iteraciones
-            error = abs(x_next - x_prev)
-            if not np.isfinite(x_next):
-                raise ValueError(f"El método de Punto Fijo produjo un valor no finito en la iteración {i}.")
-            iteration_history.append({
-                'iteration': i,
-                'x': round(float(x_next), 6),
-                'fx': round(float(fx), 6),
-                'error': round(float(error), 6)
-            })
-            logger.info(f"Punto Fijo Iteración {i}: x = {x_next}, f(x) = {fx}, error = {error}")
-            if error < tol:
-                converged = True
-                break
-            x_prev = x_next
-        except Exception as e:
-            logger.error(f"Error en la iteración {i} del método de Punto Fijo: {str(e)}")
-            return None, False, i, iteration_history
-
-    return x_next, converged, i, iteration_history
-
-# Métodos para sistemas de ecuaciones
-def jacobi_method(A, b, x0, max_iter, tol=1e-6, iteration_history=None):
-    n = len(A)
-    x = np.array(x0, dtype=float)
-    x_new = np.zeros_like(x)
-    converged = False
-
-    for i in range(1, max_iter + 1):
-        for j in range(n):
-            s = sum(A[j][k] * x[k] for k in range(n) if k != j)
-            if A[j][j] == 0:
-                raise ZeroDivisionError(f"División por cero detectada en la fila {j}.")
-            x_new[j] = (b[j] - s) / A[j][j]
-        
-        # Calcular el error como la norma infinita
-        error = np.linalg.norm(x_new - x, ord=np.inf)
-        
-        # Almacenar el historial
-        if iteration_history is not None:
-            iteration_history.append({
-                'iteration': i,
-                'x': [round(float(val), 6) for val in x_new],
-                'error': round(float(error), 6)
-            })
-        logger.info(f"Jacobi Iteración {i}: x = {x_new}, error = {error}")
-
-        if error < tol:
-            converged = True
-            break
-        x = x_new.copy()
-
-    return x.tolist(), converged, i
-
-def gauss_seidel_method(A, b, x0, max_iter, tol=1e-6, iteration_history=None):
-    """
-    Implementación del método de Gauss-Seidel para resolver sistemas de ecuaciones lineales A x = b.
-    """
-    n = len(A)
-    x = np.array(x0, dtype=float)
-    converged = False
-
-    for i in range(1, max_iter + 1):
-        x_old = x.copy()
-        for j in range(n):
-            s = sum(A[j][k] * x[k] for k in range(n) if k != j)
-            if A[j][j] == 0:
-                raise ZeroDivisionError(f"División por cero detectada en la fila {j}.")
-            x[j] = (b[j] - s) / A[j][j]
-        
-        # Calcular el error como la norma infinita
-        error = np.linalg.norm(x - x_old, ord=np.inf)
-        
-        # Almacenar el historial
-        if iteration_history is not None:
-            iteration_history.append({
-                'iteration': i,
-                'x': [round(float(val), 6) for val in x],
-                'error': round(float(error), 6)
-            })
-        logger.info(f"Gauss-Seidel Iteración {i}: x = {x}, error = {error}")
-
-        if error < tol:
-            converged = True
-            break
-
-    return x.tolist(), converged, i
-
-def trapezoidal_method(f, a, b, n):
-    h = (b - a) / n
-    x = np.linspace(a, b, n + 1)
-    y = f(x)
-    area = (h / 2) * np.sum(y[:-1] + y[1:])
-
-    trapezoids = []
-    for i in range(n):
-        # Definir los vértices del trapezoide
-        trapezoid_x = [x[i], x[i+1], x[i+1], x[i], x[i]]
-        trapezoid_y = [0, 0, y[i+1], y[i], 0]  # Cierra hacia el eje x
-        trapezoids.append({'x': trapezoid_x, 'y': trapezoid_y})
-    
-    return area, trapezoids
-
-def calculate_trapezoidal_error(expr, a, b, n):
-    """
-    Calcula el error estimado para el método del trapecio.
-    """
-    x = sp.Symbol('x')
-    try:
-        second_derivative = sp.diff(expr, x, 2)
-        f_double_prime = sp.lambdify(x, second_derivative, modules=['numpy'])
-        # Evaluar en múltiples puntos para encontrar el máximo absoluto
-        x_vals = np.linspace(a, b, 1000)
-        f_double_prime_vals = np.abs(f_double_prime(x_vals))
-        max_f_double_prime = np.max(f_double_prime_vals)
-        error = ((b - a)**3) / (12 * n**2) * max_f_double_prime
-        return error
-    except Exception as e:
-        logger.error(f"Error al calcular la derivada segunda para el error del trapecio: {str(e)}")
-        raise ValueError("No se pudo calcular el error estimado para el método del trapecio.")
-
-def calculate_simpson_error(expr, a, b, n):
-    """
-    Calcula el error estimado para el método de Simpson.
-    """
-    x = sp.Symbol('x')
-    try:
-        fourth_derivative = sp.diff(expr, x, 4)
-        f_fourth_prime = sp.lambdify(x, fourth_derivative, modules=['numpy'])
-        # Evaluar en múltiples puntos para encontrar el máximo absoluto
-        x_vals = np.linspace(a, b, 1000)
-        f_fourth_prime_vals = np.abs(f_fourth_prime(x_vals))
-        max_f_fourth_prime = np.max(f_fourth_prime_vals)
-        error = ((b - a)**5) / (180 * n**4) * max_f_fourth_prime
-        return error
-    except Exception as e:
-        logger.error(f"Error al calcular la derivada cuarta para el error de Simpson: {str(e)}")
-        raise ValueError("No se pudo calcular el error estimado para el método de Simpson.")
-
-def simpson_method(f, a, b, n):
-    if n % 2 != 0:
-        raise ValueError("El número de subintervalos (n) debe ser par para el método de Simpson.")
-    
-    h = (b - a) / n
-    x = np.linspace(a, b, n + 1)
-    y = f(x)
-    area = (h / 3) * (y[0] + 4 * np.sum(y[1:n:2]) + 2 * np.sum(y[2:n-1:2]) + y[n])
-
-    # Crear parábolas para graficar
-    parabolas = []
-    for i in range(0, n, 2):
-        x_parabola = np.linspace(x[i], x[i+2], 100)  # Más puntos para una curva suave
-        y_parabola = (
-            y[i] * ((x_parabola - x[i+1]) * (x_parabola - x[i+2])) / ((x[i] - x[i+1]) * (x[i] - x[i+2]))
-            + y[i+1] * ((x_parabola - x[i]) * (x_parabola - x[i+2])) / ((x[i+1] - x[i]) * (x[i+1] - x[i+2]))
-            + y[i+2] * ((x_parabola - x[i]) * (x_parabola - x[i+1])) / ((x[i+2] - x[i]) * (x[i+2] - x[i+1]))
-        )
-        parabolas.append({'x': x_parabola, 'y': y_parabola})
-    
-    return area, parabolas
-
 def render_integration_plot(f, a, b, n, method, extra_shapes):
     x_vals = np.linspace(a, b, 1000)
     y_vals = f(x_vals)
@@ -593,68 +353,7 @@ def render_integration_plot(f, a, b, n, method, extra_shapes):
 
     fig = go.Figure(data=data_traces, layout=layout)
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-def broyden_method(F, J_initial, x0, max_iter=100, tol=1e-6, iteration_history=None):
-    """
-    Implementación del Método de Broyden para sistemas de ecuaciones no lineales.
 
-    Args:
-        F: Función que toma un vector x y devuelve F(x).
-        J_initial: Matriz jacobiana inicial.
-        x0: Estimación inicial (lista o array).
-        max_iter: Número máximo de iteraciones.
-        tol: Tolerancia para el criterio de convergencia.
-        iteration_history: Lista para almacenar el historial de iteraciones.
-
-    Returns:
-        x: Solución encontrada.
-        converged: Booleano indicando si el método convergió.
-        iterations: Número de iteraciones realizadas.
-    """
-    x = np.array(x0, dtype=float)
-    J = np.array(J_initial, dtype=float)
-    converged = False
-
-    for i in range(1, max_iter + 1):
-        try:
-            # Resolver J * delta = -F(x)
-            delta = np.linalg.solve(J, -F(x))
-        except np.linalg.LinAlgError:
-            logger.error(f"Jacobian singular en la iteración {i}.")
-            return None, False, i
-
-        x_new = x + delta
-        F_new = F(x_new)
-        error = np.linalg.norm(delta, ord=np.inf)
-
-        if iteration_history is not None:
-            iteration_history.append({
-                'iteration': i,
-                'x': [round(float(val), 6) for val in x_new],
-                'F(x)': [round(float(val), 6) for val in F_new],
-                'error': round(float(error), 6)
-            })
-
-        logger.info(f"Broyden Iteración {i}: x = {x_new}, F(x) = {F_new}, error = {error}")
-
-        if error < tol:
-            converged = True
-            x = x_new
-            break
-
-        # Actualizar la matriz Jacobiana usando la actualización de Broyden
-        y = F_new - F(x)
-        delta = delta.reshape(-1, 1)
-        y = y.reshape(-1, 1)
-        J_delta = J @ delta
-        denom = (delta.T @ delta)[0, 0]
-        if denom == 0:
-            logger.error(f"Denominador cero en la actualización de Jacobiano en la iteración {i}.")
-            return None, False, i
-        J += ((y - J_delta) @ delta.T) / denom
-
-        x = x_new
-
-    return x.tolist(), converged, i
 def evaluate_system(equations, variables):
     def F(x):
         subs = {var: val for var, val in zip(variables, x)}
@@ -682,99 +381,6 @@ def compute_initial_jacobian(equations, variables, x0):
             row.append(derivative_func(*x0))
         J.append(row)
     return np.array(J, dtype=float)
-def render_broyden_plot(iteration_history, variables):
-    """
-    Genera una gráfica animada de la convergencia del Método de Broyden.
-
-    Args:
-        iteration_history: Lista con el historial de iteraciones.
-        variables: Lista de nombres de variables.
-
-    Returns:
-        plot_json: JSON para Plotly.
-    """
-    data_traces = []
-    frames = []
-    iterations = [entry['iteration'] for entry in iteration_history]
-
-    # Colores para cada variable
-    colors = ['#2ecc71', '#3498db', '#e74c3c', '#9b59b6', '#f1c40f', '#1abc9c']
-
-    # Crear trazas iniciales (vacías)
-    for idx, var in enumerate(variables):
-        trace = go.Scatter(
-            x=[],
-            y=[],
-            mode='lines+markers',
-            name=var,
-            line=dict(color=colors[idx % len(colors)], width=2)
-        )
-        data_traces.append(trace)
-
-    # Crear frames para cada iteración
-    for i, entry in enumerate(iteration_history):
-        frame_data = []
-        for idx, var in enumerate(variables):
-            frame_data.append(
-                go.Scatter(
-                    x=iterations[:i+1],
-                    y=[iter_val for iter_val in [h['x'][idx] for h in iteration_history[:i+1]]],
-                    mode='lines+markers',
-                    name=var,
-                    line=dict(color=colors[idx % len(colors)], width=2)
-                )
-            )
-        frames.append(go.Frame(data=frame_data, name=str(i)))
-
-    # Layout con controles de animación
-    layout = go.Layout(
-        title='Convergencia del Método de Broyden',
-        xaxis=dict(title='Iteración', range=[min(iterations), max(iterations)]),
-        yaxis=dict(title='Valor de la Variable'),
-        plot_bgcolor='#f0f0f0',
-        updatemenus=[
-            dict(
-                type="buttons",
-                showactive=False,
-                y=1.15,
-                x=1.05,
-                xanchor="right",
-                yanchor="top",
-                pad=dict(t=0, r=10),
-                buttons=[
-                    dict(label="▶ Play",
-                         method="animate",
-                         args=[None, {"frame": {"duration": 700, "redraw": True},
-                                      "fromcurrent": True, "transition": {"duration": 300}}]),
-                    dict(label="⏸ Pause",
-                         method="animate",
-                         args=[[None], {"frame": {"duration": 0, "redraw": False},
-                                        "mode": "immediate",
-                                        "transition": {"duration": 0}}])
-                ]
-            )
-        ],
-        sliders=[
-            dict(
-                active=0,
-                currentvalue={"prefix": "Iteración: "},
-                pad={"t": 50},
-                steps=[
-                    dict(method='animate',
-                         args=[[str(k)],
-                               {"frame": {"duration": 700, "redraw": True},
-                                "mode": "immediate",
-                                "transition": {"duration": 300}}],
-                         label=str(k+1))
-                    for k in range(len(frames))
-                ]
-            )
-        ]
-    )
-
-    fig = go.Figure(data=data_traces, layout=layout, frames=frames)
-    plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    return plot_json
 
 
 def parse_system(equations, variables):
@@ -895,7 +501,7 @@ def calculate():
 
                 if method == 'jacobi':
                     try:
-                        root, converged, iterations = jacobi_method(
+                        root, converged, iterations = jacobi.jacobi_method(
                             A_matrix, b_vector, x0, max_iter, tol=1e-6, iteration_history=iteration_history
                         )
                     except Exception as e:
@@ -904,7 +510,7 @@ def calculate():
 
                 elif method == 'gauss_seidel':
                     try:
-                        root, converged, iterations = gauss_seidel_method(
+                        root, converged, iterations = gauss.gauss_seidel_method(
                             A_matrix, b_vector, x0, max_iter, tol=1e-6, iteration_history=iteration_history
                         )
                     except Exception as e:
@@ -913,7 +519,7 @@ def calculate():
 
                 # Generar gráfica para sistemas de ecuaciones
                 try:
-                    plot_json = render_broyden_plot(iteration_history, variables)
+                    plot_json = broyden.render_broyden_plot(iteration_history, variables)
                     response = {
                         'solution': {var: round(float(root[i]), 6) for i, var in enumerate(variables)},
                         'converged': converged,
@@ -945,7 +551,7 @@ def calculate():
                     J_initial = compute_initial_jacobian(exprs, variables_symbols, x0)
 
                     # Ejecutar el Método de Broyden
-                    root, converged, iterations = broyden_method(F, J_initial, x0, max_iter, tol=1e-6, iteration_history=iteration_history)
+                    root, converged, iterations =broyden.broyden_method(F, J_initial, x0, max_iter, tol=1e-6, iteration_history=iteration_history)
 
                     if not converged:
                         logger.error('El método de Broyden no convergió.')
@@ -953,7 +559,7 @@ def calculate():
 
                     # Generar gráfica para sistemas de ecuaciones
                     try:
-                        plot_json = render_broyden_plot(iteration_history, variables)
+                        plot_json = broyden.render_broyden_plot(iteration_history, variables)
                         response = {
                             'solution': {var: round(float(root[i]), 6) for i, var in enumerate(variables)},
                             'converged': converged,
@@ -993,12 +599,12 @@ def calculate():
             # Calcular el área y preparar la gráfica
             try:
                 if method == 'trapezoidal':
-                    area, trapezoids = trapezoidal_method(f, a, b, n)
-                    estimatedError = calculate_trapezoidal_error(expr, a, b, n)  # Calcular el error
+                    area, trapezoids = trapecio.trapezoidal_method(f, a, b, n)
+                    estimatedError = trapecio.calculate_trapezoidal_error(expr, a, b, n)  # Calcular el error
                     plot_json = render_integration_plot(f, a, b, n, 'trapezoidal', trapezoids)
                 elif method == 'simpson':
-                    area, parabolas = simpson_method(f, a, b, n)
-                    estimatedError = calculate_simpson_error(expr, a, b, n)  # Calcular el error
+                    area, parabolas = simpson.simpson_method(f, a, b, n)
+                    estimatedError = simpson.calculate_simpson_error(expr, a, b, n)  # Calcular el error
 
                     plot_json = render_integration_plot(f, a, b, n, 'simpson', parabolas)
 
@@ -1348,7 +954,7 @@ def calculate():
             # Métodos para una sola ecuación
             if method == 'bisection':
                 try:
-                    root, converged, iterations = bisection_method(f, a, b, max_iter, iteration_history)
+                    root, converged, iterations = bisection.bisection_method(f, a, b, max_iter, iteration_history)
                 except Exception as e:
                     logger.error(f"Error en el método Bisección: {str(e)}")
                     return jsonify({'error': f"Error en el método Bisección: {str(e)}"}), 400
@@ -1356,7 +962,7 @@ def calculate():
                 try:
                     # Método de Newton-Raphson
                     fprime = parse_derivative_equation(equation)
-                    root, converged, iterations, iteration_history = newton_raphson(f, fprime, initial_guess, max_iter, tol=1e-6)
+                    root, converged, iterations, iteration_history = newton_raphson.newton_raphsonMethod(f, fprime, initial_guess, max_iter, tol=1e-6)
                     if not converged:
                         logger.error('El método Newton-Raphson no convergió.')
                         return jsonify({'error': 'El método Newton-Raphson no convergió.'}), 400
@@ -1366,7 +972,7 @@ def calculate():
             elif method == 'secant':
                 try:
                     # Método de la Secante
-                    root, converged, iterations, iteration_history = secant_method(f, x0_sec, x1_sec, max_iter, tol=1e-6)
+                    root, converged, iterations, iteration_history = secant.secant_method(f, x0_sec, x1_sec, max_iter, tol=1e-6)
                     if not converged:
                         logger.error('El método Secante no convergió.')
                         return jsonify({'error': 'El método Secante no convergió.'}), 400
@@ -1376,7 +982,7 @@ def calculate():
             elif method == 'fixed_point':
                 try:
                     # Método de Punto Fijo
-                    root, converged, iterations, iteration_history = fixed_point_method(g, initial_guess, max_iter, iteration_history, tol=1e-6)
+                    root, converged, iterations, iteration_history = fixed_point.fixed_point_method(g, initial_guess, max_iter, iteration_history, tol=1e-6)
                     if not converged:
                         logger.error('El método Punto Fijo no convergió.')
                         return jsonify({'error': 'El método Punto Fijo no convergió.'}), 400

@@ -519,7 +519,7 @@ def calculate():
 
                 # Generar gráfica para sistemas de ecuaciones
                 try:
-                    plot_json = broyden.render_broyden_plot(iteration_history, variables)
+                    plot_json = broyden.render_broyden_plot(exprs, variables,root)
                     response = {
                         'solution': {var: round(float(root[i]), 6) for i, var in enumerate(variables)},
                         'converged': converged,
@@ -530,7 +530,6 @@ def calculate():
                 except Exception as e:
                     logger.error(f"Error al generar la gráfica para el sistema: {str(e)}")
                     return jsonify({'error': f"Error al generar la gráfica para el sistema: {str(e)}"}), 400
-
             elif is_system and method == 'broyden':
                 try:
                     # Parsear las ecuaciones como expresiones SymPy
@@ -551,7 +550,7 @@ def calculate():
                     J_initial = compute_initial_jacobian(exprs, variables_symbols, x0)
 
                     # Ejecutar el Método de Broyden
-                    root, converged, iterations =broyden.broyden_method(F, J_initial, x0, max_iter, tol=1e-6, iteration_history=iteration_history)
+                    root, converged, iterations = broyden.broyden_method(F, J_initial, x0, max_iter, tol=1e-6, iteration_history=iteration_history)
 
                     if not converged:
                         logger.error('El método de Broyden no convergió.')
@@ -559,7 +558,7 @@ def calculate():
 
                     # Generar gráfica para sistemas de ecuaciones
                     try:
-                        plot_json = broyden.render_broyden_plot(iteration_history, variables)
+                        plot_json = broyden.render_broyden_plot(exprs, variables, root)  # Pasar exprs y root
                         response = {
                             'solution': {var: round(float(root[i]), 6) for i, var in enumerate(variables)},
                             'converged': converged,

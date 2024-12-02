@@ -53,44 +53,166 @@ const keyboard_keys = [
 
 const special_keys = ["del", "left", "right", "enter", "AC"];
 
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("DOMContentLoaded en keyboard.js");
-    loadKeyboard();
-    initializeKeyboardFocus();
-});
-// Nueva función para inicializar el manejo del foco
+// keyboard.js
+
+// keyboard.js
+
+// Global variable to track the currently active MathQuill field
+let currentActiveMathField = null;
+
 function initializeKeyboardFocus() {
-    // Obtener todos los campos MathQuill
-    const mathquillFields = document.querySelectorAll('.mathquill-field, #math-input, #gFunctionInput');
+    console.log("Inicializando el manejo del foco del teclado");
+    
+    // Comprehensive selector for all potential MathQuill and input fields
+    const inputSelectors = [
+        // Main equation input
+        '#math-input',
+        
+        // Fixed Point method g(x) input
+        '#gFunctionInput',
+        
+        // System of equations inputs
+        '[id^="mathquill_equation_"]',
+        
+        // Other specific method inputs
+        '#initial_guess',
+        '#initial_guess_system',
+        '#a_bisection',
+        '#b_bisection',
+        '#x0',
+        '#x1',
+        '#a_integration',
+        '#b_integration'
+    ];
 
+    // Combine all selectors
+    const allInputFields = document.querySelectorAll(inputSelectors.join(', '));
 
-    mathquillFields.forEach(field => {
-        // Cuando se hace clic en un campo, actualizar el campo activo
+    allInputFields.forEach(field => {
+        // Skip if already initialized
+        if (field.mathquillInstance) return;
+
+        // Initialize MathQuill for appropriate fields
+        const mathquillEligibleFields = [
+            '#math-input', 
+            '#gFunctionInput', 
+            '[id^="mathquill_equation_"]'
+        ];
+
+        if (mathquillEligibleFields.some(selector => 
+            field.matches(selector))) {
+            const MQ = MathQuill.getInterface(2);
+            field.mathquillInstance = MQ.MathField(field, {
+                spaceBehavesLikeTab: false,
+                handlers: {
+                    enter: function() {
+                        const form = document.getElementById('calculator-form');
+                        if (form) {
+                            form.requestSubmit();
+                        }
+                    }
+                }
+            });
+        }
+
+        // Add event listeners for focus and click
         field.addEventListener('click', (e) => {
             e.preventDefault();
-            if (window.calculatorApp) {
-                // Buscar el identificador del campo
-                const fieldId = field.id;
-                const mathField = window.calculatorApp.getMathFieldByElement(field);
-                if (mathField) {
-                    window.calculatorApp.setActiveMathField(mathField);
-                    console.log(`Campo activo actualizado a: ${fieldId}`);
-                }
+            
+            // For MathQuill fields, use mathquillInstance
+            if (field.mathquillInstance) {
+                currentActiveMathField = field.mathquillInstance;
+            } else {
+                // For regular input fields, use the field directly
+                currentActiveMathField = field;
             }
+            
+            console.log(`Campo activo actualizado a: ${field.id}`);
+            field.focus();
         });
 
-        // Manejar el foco
         field.addEventListener('focus', (e) => {
-            if (window.calculatorApp) {
-                const mathField = window.calculatorApp.getMathFieldByElement(field);
-                if (mathField) {
-                    window.calculatorApp.setActiveMathField(mathField);
-                    console.log(`Foco establecido en campo: ${field.id}`);
-                }
+            // Similar logic as click event
+            if (field.mathquillInstance) {
+                currentActiveMathField = field.mathquillInstance;
+            } else {
+                currentActiveMathField = field;
             }
+            
+            console.log(`Foco establecido en campo: ${field.id}`);
         });
     });
 }
+
+function handleKeyPress(key) {
+    console.log(`Manejando la tecla: ${key}`);
+
+    // Intentar obtener el campo activo
+    let currentField = currentActiveMathField;
+
+    // Si no hay campo activo, buscar el campo enfocado
+    if (!currentField) {
+        const focusedField = document.activeElement;
+        
+        // Check if the focused field is one of our target fields
+        const targetSelectors = [
+            '.mathquill-field', 
+            '#math-input', 
+            '#gFunctionInput', 
+            '[id^="mathquill_equation_"]',
+            '#initial_guess',
+            '#initial_guess_system',
+            '#a_bisection',
+            '#b_bisection',
+            '#x0',
+            '#x1',
+            '#a_integration',
+            '#b_integration'
+        ];
+        
+        if (targetSelectors.some(selector => focusedField.matches(selector))) {
+            currentField = focusedField.mathquillInstance || focusedField;
+        }
+    }
+
+    // Si aún no se encuentra un campo, usar el primer campo disponible
+    if (!currentField) {
+        const firstField = document.querySelector([
+            '.mathquill-field', 
+            '#math-input', 
+            '#gFunctionInput', 
+            '[id^="mathquill_equation_"]'
+        ].join(', '));
+        
+        if (firstField) {
+            currentField = firstField.mathquillInstance || firstField;
+        }
+    }
+
+    // Si después de todo no se encuentra un campo, mostrar advertencia
+    if (!currentField) {
+        console.warn("No hay un campo activo. Por favor, seleccione un campo para ingresar datos.");
+        return;
+    }
+
+    // Manejar la inserción de símbolos de manera diferente para MathQuill y campos regulares
+    if (currentField.latex && typeof currentField.latex === 'function') {
+        // Es un campo MathQuill
+        insertSymbol(currentField, key);
+    } else {
+        // Es un campo de entrada regular
+        if (key === 'del') {
+            currentField.value = currentField.value.slice(0, -1);
+        } else if (key !== 'enter') {
+            currentField.value += key;
+        }
+    }
+}
+
+// Mantener la función insertSymbol existente para campos MathQuill
+// ... (el resto de tu código insertSymbol permanece igual)
+
+
 
 function loadKeyboard() {
     console.log("Cargando el teclado virtual...");
@@ -151,24 +273,7 @@ function loadKeyboard() {
     });
     console.log("Teclado virtual cargado correctamente.");
 }
-function handleKeyPress(key) {
-    console.log(`Manejando la tecla: ${key}`);
 
-    // Verificar si CalculatorApp está inicializado y hay un campo activo
-    if (!window.calculatorApp) {
-        console.warn("CalculatorApp no está inicializado.");
-        return;
-    }
-
-    let currentMathField = window.calculatorApp.getActiveMathField();
-
-    if (!currentMathField) {
-        console.warn("No hay un campo MathQuill activo. Por favor, seleccione un campo para ingresar datos.");
-        return;
-    }
-
-    insertSymbol(currentMathField, key);
-}
 
 
 // Función para insertar el símbolo en el campo MathQuill activo
@@ -314,3 +419,17 @@ function insertSymbol(currentMathField, key) {
     currentMathField.focus();
     console.log("Campo MathQuill re-enfocado.");
 }
+// Inicializar cuando el DOM esté listo
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("DOMContentLoaded en keyboard.js");
+    loadKeyboard();
+    initializeKeyboardFocus();
+
+    // Re-inicializar cuando se agreguen nuevas ecuaciones dinámicamente
+    const addEquationBtn = document.getElementById('addEquationBtn');
+    if (addEquationBtn) {
+        addEquationBtn.addEventListener('click', () => {
+            setTimeout(initializeKeyboardFocus, 100);
+        });
+    }
+});

@@ -3,6 +3,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const toggleBtn = document.getElementById("toggle-keyboard-btn");
     const keyboardContainer = document.getElementById("keyboard-container");
     const mainContainer = document.querySelector(".main-container");
+    class ToggleKeyboard {
+        constructor(keyboard) {
+            this.keyboard = keyboard;
+        }
+    
+        toggle() {
+            this.keyboard.toggleVisibility();
+        }
+    }
+    
 
     // Inicialmente ocultar el teclado
     keyboardContainer.style.display = "none";

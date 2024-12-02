@@ -1,6 +1,18 @@
 class UIManager {
     constructor() {
         this.elements = this.initializeElements();
+        this.formHandler = new FormHandler(document.getElementById('form'));
+        this.keyboard = new Keyboard();
+        this.toggleKeyboard = new ToggleKeyboard(this.keyboard);
+    }
+     // Mostrar u ocultar teclado
+     handleKeyboardToggle() {
+        this.toggleKeyboard.toggle();
+    }
+
+    // Validar y enviar formulario
+    handleFormSubmit() {
+        this.formHandler.validateAndSubmit();
     }
 
     initializeElements(ids) {
@@ -10,6 +22,7 @@ class UIManager {
             this.elements[id] = element;
         });
     }
+    
 
     getElement(id) {
         return this.elements[id];

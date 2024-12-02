@@ -4,6 +4,26 @@ class MathFieldManager {
         this.activeMathField = null;
         this.allMathFields = new Map();
         this.MQ = MathQuill.getInterface(2);
+        this.mathField = document.getElementById('mathField');
+        this.mathFields = [];
+    }
+     // Método para inicializar el campo de entrada matemático
+     initialize() {
+        // Inicialización de MathQuill o similar
+    }
+    initMathFields() {
+        this.mathFields.forEach(field => {
+            // Inicializar MathQuill en el campo
+        });
+    }
+
+    getMathFieldValues() {
+        // Extraer los valores de los campos
+    }
+
+    // Obtener la expresión matemática
+    getMathExpression() {
+        return this.mathField.value;
     }
 
     initializeMathField(elementId, hiddenElementId) {

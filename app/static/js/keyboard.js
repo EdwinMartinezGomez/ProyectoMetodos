@@ -90,6 +90,30 @@ function initializeKeyboardFocus() {
         });
     });
 }
+class Keyboard {
+    constructor() {
+        this.keyboardElement = document.getElementById('keyboard');
+    }
+
+    // Método para mostrar u ocultar el teclado
+    toggleVisibility() {
+        this.keyboardElement.classList.toggle('hidden');
+        this.keyboardElement = document.getElementById('keyboard');
+    }
+    show() {
+        this.keyboardElement.style.display = 'block';
+    }
+
+    hide() {
+        this.keyboardElement.style.display = 'none';
+    }
+
+    // Método para presionar una tecla
+    pressKey(key) {
+        // Enviar la tecla presionada al campo de entrada
+    }
+}
+
 
 function loadKeyboard() {
     console.log("Cargando el teclado virtual...");

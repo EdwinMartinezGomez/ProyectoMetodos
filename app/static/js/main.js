@@ -2,7 +2,7 @@ class CalculatorApp {
     constructor() {
         try {
             this.activeMathField = null;
-            this.allMathFields = new Map(); // Mapa para almacenar todos los campos MathQuill
+            this.allMathFields = new Map(); // Mapa para almacenar todas las instancias de MathQuill
             this.initializeElements();
             this.initializeMathQuill();
             this.setupEventListeners();
@@ -24,7 +24,6 @@ class CalculatorApp {
                 intervalInputs: this.getRequiredElement('intervalInputs'),
                 initialGuessInput: this.getRequiredElement('initialGuessInput'),
                 fixedPointInputs: this.getRequiredElement('fixedPointInputs'),
-                secantInputs: this.getRequiredElement('secantInputs'),
                 systemInputs: this.getRequiredElement('systemInputs'),
                 equationsContainer: this.getRequiredElement('equationsContainer'),
                 addEquationBtn: this.getRequiredElement('addEquationBtn'),
@@ -44,9 +43,11 @@ class CalculatorApp {
                 // Añade referencias a los nuevos campos de integración
                 aIntegration: this.getRequiredElement('a_integration'),
                 bIntegration: this.getRequiredElement('b_integration'),
-                nIntegration: this.getRequiredElement('n_integration'),
+                nIntegration: this.getRequiredElement('n_integration'), // Asegúrate de tener este campo en el HTML
                 aBisection: this.getRequiredElement('a_bisection'),
                 bBisection: this.getRequiredElement('b_bisection'),
+                x0: this.getRequiredElement('x0'),
+                x1: this.getRequiredElement('x1'),
                 // ... otros elementos según sea necesario
             };
             console.log("Elementos inicializados correctamente:", this.elements);
@@ -116,6 +117,44 @@ class CalculatorApp {
                 }
             });
             this.allMathFields.set('gFunction', gFunctionField);
+
+            // Inicializar campos dinámicos si existen
+            const dynamicMathFields = document.querySelectorAll('[id^="mathquill_equation_"]');
+            dynamicMathFields.forEach(field => {
+                if (field.mathquillInstance) return;
+
+                const equationNumber = field.id.split('_').pop();
+                const hiddenInputId = `equation_${equationNumber}`;
+                const hiddenInput = document.getElementById(hiddenInputId);
+
+                if (!hiddenInput) {
+                    console.warn(`No se encontró el campo oculto para: ${field.id}`);
+                    return;
+                }
+
+                const mathField = MQ.MathField(field, {
+                    handlers: {
+                        edit: () => {
+                            try {
+                                const latex = mathField.latex();
+                                hiddenInput.value = this.latexToJavaScript(latex);
+                            } catch (error) {
+                                this.showError('Error al procesar la ecuación matemática');
+                                console.error('Error en MathQuill handler:', error);
+                            }
+                        },
+                        focus: () => {
+                            this.activeMathField = mathField;
+                            console.log(`Campo MathQuill enfocado: equation ${equationNumber}`);
+                        },
+                        blur: () => {
+                            console.log(`Campo MathQuill desenfocado: equation ${equationNumber}`);
+                        }
+                    }
+                });
+
+                this.allMathFields.set(`equation_${equationNumber}`, mathField);
+            });
 
             // Establecer el campo inicial activo
             this.activeMathField = mathInputField;
@@ -210,6 +249,7 @@ class CalculatorApp {
             throw new Error(`Error configurando event listeners: ${error.message}`);
         }
     }
+
     getMathFieldByElement(element) {
         // Iterar sobre todos los campos MathQuill
         for (let [key, mathField] of this.allMathFields.entries()) {
@@ -224,13 +264,19 @@ class CalculatorApp {
         }
         return null;  // Si no se encuentra el campo MathQuill
     }
-    
 
     // Añadir la función handleEquationRemoval
     handleEquationRemoval(event) {
         if (event.target.classList.contains('removeEquationBtn') || event.target.closest('.removeEquationBtn')) {
             const equationInputDiv = event.target.closest('.equation-input');
             if (equationInputDiv) {
+                const mathQuillDiv = equationInputDiv.querySelector('.mathquill-field');
+                const fieldId = mathQuillDiv.id;
+                const equationNumber = fieldId.split('_').pop();
+
+                // Remover la instancia de MathQuill
+                this.removeMathQuillField(`equation_${equationNumber}`);
+
                 equationInputDiv.remove();
                 this.updateEquationLabels();
                 this.updateVariables(); // Actualizar variables después de eliminar una ecuación
@@ -245,6 +291,10 @@ class CalculatorApp {
             label.textContent = `Ecuación ${index + 1}:`;
             const hiddenInput = eq.querySelector('input[type="hidden"]');
             hiddenInput.id = `equation_${index + 1}`;
+            hiddenInput.name = `equation_${index + 1}`;
+            // Asegurar que el div MathQuill tiene el ID correcto
+            const mathQuillDiv = eq.querySelector('.mathquill-field');
+            mathQuillDiv.id = `mathquill_equation_${index + 1}`;
         });
     }
 
@@ -331,9 +381,11 @@ class CalculatorApp {
                 'integrationInputs']);
             this.disableFields(['a_bisection', 'b_bisection']);
 
-            // Agregar 'required' a todos los campos 'variables[]' dinámicamente
-            const variableInputs = this.elements.variablesContainer.querySelectorAll('input[name="variables[]"]');
-            variableInputs.forEach(input => input.required = true);
+            // Ajustar el número de variables y ecuaciones según el número actual
+            const numVariablesInput = this.elements.form.querySelector('#numVariables');
+            if (numVariablesInput) {
+                this.updateVariables(); // Asegura que variables y ecuaciones estén sincronizadas
+            }
         }
         else if (selectedMethod === 'trapezoidal' || selectedMethod === 'simpson') {
             // Mostrar campos de integración
@@ -381,7 +433,11 @@ class CalculatorApp {
 
     // Utility functions to show/hide fields and enable/disable inputs
     hideFields(fields) {
-        fields.forEach(field => this.elements[field].style.display = 'none');
+        fields.forEach(field => {
+            if (this.elements[field]) {
+                this.elements[field].style.display = 'none';
+            }
+        });
     }
 
     enableFields(ids) {
@@ -405,52 +461,21 @@ class CalculatorApp {
 
     // Function to initialize or clear MathQuill
     toggleMathQuill(selectedMethod) {
-        if (['bisection', 'newton', 'secant', 'fixed_point'].includes(selectedMethod)) {
-            if (!this.mathField && this.elements.mathInput.offsetParent !== null) {
-                const MQ = MathQuill.getInterface(2);
-                this.mathField = MQ.MathField(this.elements.mathInput, {
-                    handlers: {
-                        edit: () => {
-                            try {
-                                const latex = this.mathField.latex();
-                                this.elements.equationHidden.value = this.latexToJavaScript(latex);
-                            } catch (error) {
-                                this.showError('Error al procesar la ecuación matemática');
-                                console.error('Error en MathQuill handler:', error);
-                            }
-                        }
-                    }
-                });
-                this.elements.mathInput.addEventListener('focus', () => {
-                    this.activeMathField = this.mathField;
-                });
-                this.elements.mathInput.addEventListener('blur', () => {
-                    setTimeout(() => {
-                        if (document.activeElement.classList.contains('mathquill-editable')) {
-                            return;
-                        }
-                        this.activeMathField = null;
-                    }, 100);
-                });
-
-            }
-        } else if (['jacobi', 'gauss_seidel', 'broyden'].includes(selectedMethod)) {
-            if (this.mathField) {
-                this.mathField = null; // Destruir instancia si existe
-            }
-            this.elements.mathInput.innerHTML = ''; // Opcionalmente limpiar contenido
-        }
+        // Este método puede mantenerse o ajustarse según sea necesario
+        // Por ahora, no realiza cambios adicionales ya que la inicialización se maneja en initializeMathQuill
     }
 
     addEquationField() {
-        const numVariablesInput = this.elements.form.querySelector('#numVariables');
-        let numVariables = parseInt(numVariablesInput.value, 10);
+        const selectedMethod = this.elements.methodSelect.value;
 
-        // Verificar si se ha alcanzado el máximo de variables
-        if (numVariables >= 10) {
-            this.showError('El número máximo de variables es 10.');
+        // Solo permitir agregar ecuaciones si se está en un método de sistema
+        if (!['jacobi', 'gauss_seidel', 'broyden'].includes(selectedMethod)) {
+            this.showError('Solo se pueden agregar ecuaciones adicionales en métodos de sistemas de ecuaciones.');
             return;
         }
+
+        const numVariablesInput = this.elements.form.querySelector('#numVariables');
+        let numVariables = parseInt(numVariablesInput.value, 10);
 
         // Incrementar el número de variables
         numVariables += 1;
@@ -459,52 +484,18 @@ class CalculatorApp {
         // Actualizar los campos de variables y ecuaciones
         this.updateVariables();
 
-        // Agregar una nueva ecuación
-        const equationList = this.elements.equationsContainer.querySelector('#equationsList');
-        const currentEquations = equationList.querySelectorAll('.equation-input').length;
-        const newEquationIndex = currentEquations + 1;
+        // Re-inicializar los campos MathQuill para que el teclado virtual los reconozca
+        // Llamar a una función específica para re-inicializar el teclado virtual
+        if (typeof initializeKeyboardFocus === 'function') {
+            // Si tienes una función global para inicializar el foco, llámala
+            // En este caso, la lógica está encapsulada en main.js, así que puedes
+            // volver a llamar a initializeMathQuill o emitir un evento personalizado
+            // para que keyboard.js escuche y actualice
+            // Por simplicidad, emitiré un evento personalizado
 
-        const equationDiv = document.createElement('div');
-        equationDiv.className = 'input-group mb-2 equation-input';
-        equationDiv.innerHTML = `
-            <span class="input-group-text">Ecuación ${newEquationIndex}:</span>
-            <div class="mathquill-field form-control" id="mathquill_equation_${newEquationIndex}"></div>
-            <input type="hidden" name="equations[]" id="equation_${newEquationIndex}">
-            <button type="button" class="btn btn-danger removeEquationBtn">Eliminar</button>
-        `;
-        equationList.appendChild(equationDiv);
-
-        // Inicializar MathQuill en el nuevo campo de ecuación
-        const mathQuillDiv = equationDiv.querySelector('.mathquill-field');
-        const equationHiddenInput = equationDiv.querySelector(`#equation_${newEquationIndex}`);
-
-        const MQ = MathQuill.getInterface(2);
-        const mathField = MQ.MathField(mathQuillDiv, {
-            handlers: {
-                edit: () => {
-                    try {
-                        const latex = mathField.latex();
-                        equationHiddenInput.value = this.latexToJavaScript(latex);
-                    } catch (error) {
-                        this.showError('Error al procesar la ecuación matemática');
-                        console.error('Error en MathQuill handler:', error);
-                    }
-                },
-                focus: () => {
-                    this.activeMathField = mathField;
-                    console.log(`Campo MathQuill enfocado: equation ${newEquationIndex}`);
-                },
-                blur: () => {
-                    console.log(`Campo MathQuill desenfocado: equation ${newEquationIndex}`);
-                }
-            }
-        });
-
-        this.allMathFields.set(`equation_${newEquationIndex}`, mathField);
-
-        // No es necesario agregar event listeners de focus al elemento DOM
-        // Enfocar automáticamente el nuevo campo de ecuación
-        mathField.focus();
+            const event = new Event('mathFieldsUpdated');
+            document.dispatchEvent(event);
+        }
     }
 
     updateVariables() {
@@ -570,11 +561,18 @@ class CalculatorApp {
         // **Enfocar automáticamente el primer campo de ecuación**
         const firstEquationInput = equationsList.querySelector('.mathquill-field');
         if (firstEquationInput) {
-            firstEquationInput.focus();
+            const firstMathField = this.allMathFields.get(`equation_1`);
+            if (firstMathField) {
+                firstMathField.focus();
+            }
         }
 
         console.log(`Variables actualizadas: ${variablesList.innerHTML}`);
         console.log(`Ecuaciones actualizadas: ${equationsList.innerHTML}`);
+
+        // Emitir evento para que keyboard.js re-inicialice los campos
+        const event = new Event('mathFieldsUpdated');
+        document.dispatchEvent(event);
     }
 
     async handleFindInterval() {
@@ -692,12 +690,12 @@ class CalculatorApp {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
-    
+
             if (!response.ok) {
                 const errorData = await response.json().catch(() => null);
                 throw new Error(errorData?.error || `Error del servidor: ${response.status}`);
             }
-    
+
             return await response.json();
         } catch (error) {
             if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -706,6 +704,7 @@ class CalculatorApp {
             throw error;
         }
     }
+
     getEndpointForMethod(method) {
         const endpoints = {
             'bisection': '/bisection',
@@ -720,15 +719,14 @@ class CalculatorApp {
         };
         return endpoints[method]
     }
+
     async handleCalculationResponse(response, method) {
         if (response.error) {
             this.showError(response.error);
             return;
         }
-    
+
         try {
-            //this.clearResults();
-    
             // Diferenciar entre métodos de integración y métodos de raíces
             if (['trapezoidal', 'simpson'].includes(method)) {
                 if (response.area !== undefined) {
@@ -748,25 +746,23 @@ class CalculatorApp {
                 if (response.root !== undefined) {
                     this.displayMainResults(response);
                 }
-    
+
                 // Mostrar el historial de iteraciones si está disponible
                 if (response.iteration_history && response.iteration_history.length > 0) {
                     this.displayIterationHistory(response.iteration_history);
                 }
-    
+
                 if (response.plot_json) {
                     this.renderPlot(response.plot_json, method);
                 }
             }
-    
+
             this.elements.resultsDiv.style.display = 'block';
         } catch (error) {
             this.showError(`Error al mostrar resultados: ${error.message}`);
         }
     }
-    
-    
-    
+
     // Método para mostrar los resultados específicos de integración
     displayIntegrationResults(result) {
         this.addResultRow(
@@ -817,35 +813,30 @@ class CalculatorApp {
         }
     }
 
-
-
     displayMainResults(result) {
         this.addResultRow(
             this.elements.resultTable,
             'Convergió',
             result.converged ? 'Sí' : 'No'
         );
-    
+
         this.addResultRow(
             this.elements.resultTable,
             'Iteraciones realizadas',
             result.iterations
         );
-    
+
         this.addResultRow(
             this.elements.resultTable,
             'Raíz encontrada',
             result.root !== undefined ? result.root.toFixed(6) : 'No disponible'
         );
     }
-    
-    
 
     displayIterationHistory(history, solution = null) {
         const iterationTable = this.createIterationTable(history, solution);
         this.elements.resultTable.appendChild(iterationTable);
     }
-
 
     createIterationTable(iterations, solution = null) {
         const table = document.createElement('table');
@@ -980,8 +971,8 @@ class CalculatorApp {
             userMessage = error.message;
         } else if (error.message.includes('gráfico')) {
             userMessage = 'No se pudo generar el gráfico. Los resultados numéricos están disponibles.';
-        } else if (error.message.includes('ecuación')) {
-            userMessage = 'La ecuación ingresada no es válida. Por favor, verifíquela.';
+        } else if (error.message.includes('ecuación') || error.message.includes('función g(x)')) {
+            userMessage = 'La ecuación o función ingresada no es válida. Por favor, verifíquela.';
         }
 
         this.showError(userMessage);
@@ -1064,6 +1055,23 @@ class CalculatorApp {
                 throw new Error('El punto inicial debe tener el mismo número de elementos que variables.');
             }
 
+            // Validar que la función g(x) esté presente para métodos que lo requieran
+            if (method === 'fixed_point') {
+                const gFunction = this.elements.gFunctionHidden.value.trim();
+                if (!gFunction) {
+                    throw new Error('La función g(x) es requerida para el método de Punto Fijo');
+                }
+
+                // Validar que gFunction sea una expresión válida en JavaScript
+                try {
+                    new Function('x', `return ${gFunction};`);
+                } catch (error) {
+                    throw new Error('La función g(x) no es válida.');
+                }
+
+                formData.gFunction = gFunction;
+            }
+
             formData.initial_guess = initial_guess;
         }
         else if (['trapezoidal', 'simpson'].includes(method)) {
@@ -1096,7 +1104,6 @@ class CalculatorApp {
         else {
             // Métodos para una sola ecuación
             const equation = this.elements.equationHidden.value.trim();
-            const method = this.elements.methodSelect.value;
 
             if (!equation) {
                 throw new Error('La ecuación es requerida');
@@ -1120,8 +1127,8 @@ class CalculatorApp {
                 formData.b = b;
             } else if (method === 'secant') {
                 // Validar las estimaciones iniciales para Secante
-                const x0 = parseFloat(this.elements.form.x0.value);
-                const x1 = parseFloat(this.elements.form.x1.value);
+                const x0 = parseFloat(this.elements.x0.value);
+                const x1 = parseFloat(this.elements.x1.value);
 
                 if (isNaN(x0) || isNaN(x1)) {
                     throw new Error('Las estimaciones iniciales x₀ y x₁ deben ser números válidos');
@@ -1147,8 +1154,28 @@ class CalculatorApp {
                     if (!gFunction) {
                         throw new Error('La función g(x) es requerida para el método de Punto Fijo');
                     }
+
+                    // Validar que gFunction sea una expresión válida en JavaScript
+                    try {
+                        new Function('x', `return ${gFunction};`);
+                    } catch (error) {
+                        throw new Error('La función g(x) no es válida.');
+                    }
+
                     formData.gFunction = gFunction;
                 }
+            }
+        }
+
+        // Validar paréntesis balanceados para todas las ecuaciones
+        if (['jacobi', 'gauss_seidel', 'broyden'].includes(method)) {
+            for (let i = 1; i <= formData.variables.length; i++) {
+                this.validateParentheses(formData.equations[i - 1]);
+            }
+        } else if (['bisection', 'secant', 'newton', 'fixed_point', 'trapezoidal', 'simpson'].includes(method)) {
+            this.validateParentheses(formData.equation);
+            if (method === 'fixed_point') {
+                this.validateParentheses(formData.gFunction);
             }
         }
 
@@ -1181,9 +1208,26 @@ class CalculatorApp {
         processedLatex = processedLatex.replace(/\\pi/g, 'pi');
         processedLatex = processedLatex.replace(/\\exp\{([^{}]+)\}/g, 'exp($1)');
 
+        // Reemplazar funciones matemáticas de LaTeX a JavaScript
+        processedLatex = processedLatex.replace(/\\sin/g, 'sin');
+        processedLatex = processedLatex.replace(/\\cos/g, 'cos');
+        processedLatex = processedLatex.replace(/\\tan/g, 'tan');
+        processedLatex = processedLatex.replace(/\\csc/g, 'csc');
+        processedLatex = processedLatex.replace(/\\sec/g, 'sec');
+        processedLatex = processedLatex.replace(/\\cot/g, 'cot');
+        processedLatex = processedLatex.replace(/\\ln/g, 'log');
+        processedLatex = processedLatex.replace(/\\log/g, 'log10');
+
         // Insertar '*' implícito
         processedLatex = processedLatex.replace(/(\d)\s*([a-zA-Z(])/g, '$1*$2');
         processedLatex = processedLatex.replace(/(\))\s*([a-zA-Z(])/g, '$1*$2');
+
+        // Convertir exponentes a la sintaxis JavaScript
+        processedLatex = processedLatex.replace(/\^(\d+)/g, '**$1');
+        processedLatex = processedLatex.replace(/\^(\{[^}]+\})/g, '**$1');
+
+        console.log("Después de reemplazar '*', LaTeX:", processedLatex);
+
         return processedLatex;
     }
 
@@ -1226,7 +1270,6 @@ class CalculatorApp {
 
         return processedGFunc;
     }
-
 
     displaySystemResults(result) {
         const solution = result.solution;
@@ -1271,10 +1314,6 @@ class CalculatorApp {
         table.appendChild(row);
     }
 
-
-
-
-
     displayResults(result) {
         this.elements.resultTable.innerHTML = '';
 
@@ -1314,8 +1353,6 @@ class CalculatorApp {
 
         // Puedes agregar más detalles según lo necesites
     }
-
-
 }
 
 // Inicializar la aplicación al cargar el DOM

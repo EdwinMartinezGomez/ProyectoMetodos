@@ -540,7 +540,7 @@ class CalculatorApp {
 
             // Inicializar MathQuill en el campo de ecuación
             const mathQuillDiv = equationDiv.querySelector('.mathquill-field');
-            const equationHiddenInput = equationDiv.querySelector(`#equation_${i},`);
+            const equationHiddenInput = equationDiv.querySelector(`#equation_${i}`);
 
             const MQ = MathQuill.getInterface(2);
             const mathField = MQ.MathField(mathQuillDiv, {

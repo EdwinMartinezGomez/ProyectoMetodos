@@ -211,7 +211,18 @@ class CalculatorApp {
         }
     }
     getMathFieldByElement(element) {
-        return element.mathquillInstance || null;
+        // Iterar sobre todos los campos MathQuill
+        for (let [key, mathField] of this.allMathFields.entries()) {
+            try {
+                // Asegurarse de que el campo MathQuill tiene un contenedor válido
+                if (mathField.el() && mathField.el()[0] === element) {
+                    return mathField;
+                }
+            } catch (error) {
+                console.error(`Error buscando el campo MathQuill: ${error}`);
+            }
+        }
+        return null;  // Si no se encuentra el campo MathQuill
     }
     
 
@@ -529,7 +540,7 @@ class CalculatorApp {
 
             // Inicializar MathQuill en el campo de ecuación
             const mathQuillDiv = equationDiv.querySelector('.mathquill-field');
-            const equationHiddenInput = equationDiv.querySelector(`#equation_${i}`);
+            const equationHiddenInput = equationDiv.querySelector(`#equation_${i},`);
 
             const MQ = MathQuill.getInterface(2);
             const mathField = MQ.MathField(mathQuillDiv, {

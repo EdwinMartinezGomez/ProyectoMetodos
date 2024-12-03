@@ -642,7 +642,11 @@ class CalculatorApp {
             const formData = await this.validateAndPrepareFormData();
             console.log("Datos de formulario validados:", formData);
 
-            const response = await this.sendCalculationRequest(formData);
+            // Obtener endpoint específico basado en el método
+            const endpoint = this.getEndpointForMethod(formData.method);
+            const response = await this.sendCalculationRequest(endpoint, formData);
+
+            // Manejar la respuesta del cálculo
             await this.handleCalculationResponse(response, formData.method);
         } catch (error) {
             this.handleError(error);
@@ -681,25 +685,19 @@ class CalculatorApp {
         this.elements.resultsDiv.style.display = 'none';
     }
 
-    async sendCalculationRequest(formData) {
+    async sendCalculationRequest(endpoint, formData) {
         try {
-            // Si es un sistema, enviar como tal
-            if (formData.equations && formData.variables) {
-                // Convertir las estimaciones iniciales a una lista de números
-                formData.initial_guess = formData.initial_guess;
-            }
-
-            const response = await fetch('/calculate', {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
-
+    
             if (!response.ok) {
                 const errorData = await response.json().catch(() => null);
                 throw new Error(errorData?.error || `Error del servidor: ${response.status}`);
             }
-
+    
             return await response.json();
         } catch (error) {
             if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -708,79 +706,79 @@ class CalculatorApp {
             throw error;
         }
     }
-
+    getEndpointForMethod(method) {
+        const endpoints = {
+            'bisection': '/bisection',
+            'secant': '/secant',
+            'newton': '/newton_raphson',
+            'fixed_point': '/fixed_point',
+            'jacobi': '/jacobi',
+            'gauss_seidel': '/gauss_seidel',
+            'broyden': '/broyden',
+            'trapezoidal': '/trapezoidal',
+            'simpson': '/simpson'
+        };
+        return endpoints[method]
+    }
     async handleCalculationResponse(response, method) {
         if (response.error) {
             this.showError(response.error);
             return;
         }
-
+    
         try {
-            // Limpia cualquier resultado previo.
-            //  this.clearResults();
-
-            // Verifica el método para mostrar los resultados adecuados
+            //this.clearResults();
+    
+            // Diferenciar entre métodos de integración y métodos de raíces
             if (['trapezoidal', 'simpson'].includes(method)) {
-                // Métodos de integración
-                if (response.area !== undefined && response.estimatedError !== undefined) {
-                    this.displayIntegrationResults(response); // Muestra área y error estimado.
+                if (response.area !== undefined) {
+                    this.displayIntegrationResults(response);
                 }
-
                 if (response.plot_json) {
-                    this.renderPlot(response.plot_json, method); // Renderiza la gráfica.
-                } else {
-                    console.warn('No se proporcionó plot_json en la respuesta.');
+                    this.renderPlot(response.plot_json, method);
                 }
             } else if (['jacobi', 'gauss_seidel', 'broyden'].includes(method)) {
-                // Métodos para sistemas de ecuaciones
                 if (response.solution) {
                     this.displaySystemResults(response);
                 }
-
-                if (response.iteration_history) {
-                    this.displayIterationHistory(response.iteration_history, response.solution);
-                }
-
                 if (response.plot_json) {
                     this.renderPlot(response.plot_json, method);
-                } else {
-                    console.warn('No se proporcionó plot_json en la respuesta para métodos de sistema.');
                 }
             } else {
-                // Métodos para una sola ecuación
                 if (response.root !== undefined) {
                     this.displayMainResults(response);
                 }
-
-                if (response.iteration_history) {
-                    this.displayIterationHistory(response.iteration_history, response.root);
+    
+                // Mostrar el historial de iteraciones si está disponible
+                if (response.iteration_history && response.iteration_history.length > 0) {
+                    this.displayIterationHistory(response.iteration_history);
                 }
-
+    
                 if (response.plot_json) {
                     this.renderPlot(response.plot_json, method);
-                } else {
-                    console.warn('No se proporcionó plot_json en la respuesta.');
                 }
             }
-
+    
             this.elements.resultsDiv.style.display = 'block';
         } catch (error) {
             this.showError(`Error al mostrar resultados: ${error.message}`);
         }
     }
-
+    
+    
+    
     // Método para mostrar los resultados específicos de integración
     displayIntegrationResults(result) {
         this.addResultRow(
             this.elements.resultTable,
-            'Área bajo la curva',
-            result.area.toFixed(6)
+            'Área calculada',
+            result.area !== undefined ? result.area.toFixed(6) : 'No disponible'
         );
-        this.addResultRow(
+        /*this.addResultRow(
             this.elements.resultTable,
             'Error estimado',
             `<span class="text-danger">${result.estimatedError.toFixed(6)}</span>` // Mostrar el error estimado en rojo
-        );
+        );*/
     }
 
     renderPlot(plotJson, method) {
@@ -827,19 +825,21 @@ class CalculatorApp {
             'Convergió',
             result.converged ? 'Sí' : 'No'
         );
-
+    
         this.addResultRow(
             this.elements.resultTable,
             'Iteraciones realizadas',
             result.iterations
         );
-
+    
         this.addResultRow(
             this.elements.resultTable,
             'Raíz encontrada',
-            result.root.toFixed(6)
+            result.root !== undefined ? result.root.toFixed(6) : 'No disponible'
         );
     }
+    
+    
 
     displayIterationHistory(history, solution = null) {
         const iterationTable = this.createIterationTable(history, solution);

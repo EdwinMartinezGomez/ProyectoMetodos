@@ -8,7 +8,7 @@ x = sp.Symbol('x')
 eq_str = "\sqrt{x^3}-\frac{1}{2}\cdot x+\frac{2\cdot x^2}{7}-4"
 #\sqrt{x**3} - \frac{1}{2}x + \frac{2x^2}{7} - 4
 
-derivada = "# (4-((1)/(2 x))-((2 x^(2))/(7)))^(((2)/(3)))"
+derivada = "\left(4-\frac{1}{2\cdot x}-\frac{2\cdot x^2}{7}\right)^{\frac{2}{3}}"
 # Mapear funciones y constantes
 allowed_funcs = {
     'E': sp.E,

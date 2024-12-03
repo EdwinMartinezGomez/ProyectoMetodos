@@ -14,68 +14,45 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-def broyden_method(F, J_initial, x0, max_iter=100, tol=1e-6, iteration_history=None):
-    """
-    Implementación del Método de Broyden para sistemas de ecuaciones no lineales.
+def broyden_method(f, var_symbols, x0, max_iter, tol=1e-6):
+    n = len(var_symbols)
+    x = x0.copy()
+    iteration_history = []
 
-    Args:
-        F: Función que toma un vector x y devuelve F(x).
-        J_initial: Matriz jacobiana inicial.
-        x0: Estimación inicial (lista o array).
-        max_iter: Número máximo de iteraciones.
-        tol: Tolerancia para el criterio de convergencia.
-        iteration_history: Lista para almacenar el historial de iteraciones.
-
-    Returns:
-        x: Solución encontrada.
-        converged: Booleano indicando si el método convergió.
-        iterations: Número de iteraciones realizadas.
-    """
-    x = np.array(x0, dtype=float)
-    J = np.array(J_initial, dtype=float)
-    converged = False
+    # Inicializar la matriz Jacobiana aproximada
+    J_inv = np.eye(n)
 
     for i in range(1, max_iter + 1):
-        try:
-            # Resolver J * delta = -F(x)
-            delta = np.linalg.solve(J, -F(x))
-        except np.linalg.LinAlgError:
-            logger.error(f"Jacobian singular en la iteración {i}.")
-            return None, False, i
-
-        x_new = x + delta
-        F_new = F(x_new)
-        error = np.linalg.norm(delta, ord=np.inf)
-
-        if iteration_history is not None:
-            iteration_history.append({
-                'iteration': i,
-                'x': [round(float(val), 6) for val in x_new],
-                'F(x)': [round(float(val), 6) for val in F_new],
-                'error': round(float(error), 6)
-            })
-
-        logger.info(f"Broyden Iteración {i}: x = {x_new}, F(x) = {F_new}, error = {error}")
+        f_val = np.array([float(eq.subs(dict(zip(var_symbols, x)))) for eq in f])
+        delta_x = -J_inv @ f_val
+        x_new = x + delta_x
+        
+        # Calcular el error como la norma infinita
+        error = np.linalg.norm(delta_x, ord=np.inf)
+        
+        # Almacenar el historial
+        iteration_history.append({
+            'iteration': i,
+            'x': [round(float(val), 6) for val in x_new],
+            'error': round(float(error), 6)
+        })
+        logger.info(f"Broyden Iteración {i}: x = {x_new}, error = {error}")
 
         if error < tol:
             converged = True
-            x = x_new
             break
 
-        # Actualizar la matriz Jacobiana usando la actualización de Broyden
-        y = F_new - F(x)
-        delta = delta.reshape(-1, 1)
-        y = y.reshape(-1, 1)
-        J_delta = J @ delta
-        denom = (delta.T @ delta)[0, 0]
-        if denom == 0:
-            logger.error(f"Denominador cero en la actualización de Jacobiano en la iteración {i}.")
-            return None, False, i
-        J += ((y - J_delta) @ delta.T) / denom
+        # Actualizar la matriz Jacobiana aproximada
+        f_val_new = np.array([float(eq.subs(dict(zip(var_symbols, x_new)))) for eq in f])
+        y = f_val_new - f_val
+        J_inv += np.outer(delta_x - J_inv @ y, delta_x) / np.dot(delta_x, delta_x)
 
-        x = x_new
+        x = x_new.copy()
+    else:
+        converged = False
 
-    return x.tolist(), converged, i
+    logger.debug("Resultado final: x = %s, converged = %s, iterations = %d", x, converged, i)
+    return x.tolist(), converged, i, iteration_history
    
 def render_broyden_plot(exprs, variables, root):
     """

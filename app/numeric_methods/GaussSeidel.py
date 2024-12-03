@@ -14,36 +14,35 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-def gauss_seidel_method(A, b, x0, max_iter, tol=1e-6, iteration_history=None):
-    """
-    Implementación del método de Gauss-Seidel para resolver sistemas de ecuaciones lineales A x = b.
-    """
-    n = len(A)
-    x = np.array(x0, dtype=float)
-    converged = False
+def gauss_seidel_method(A, b, x0, max_iter, tol=1e-6):
+    n = len(b)
+    x = x0.copy()
+    iteration_history = []
 
     for i in range(1, max_iter + 1):
-        x_old = x.copy()
+        x_new = x.copy()
         for j in range(n):
-            s = sum(A[j][k] * x[k] for k in range(n) if k != j)
-            if A[j][j] == 0:
-                raise ZeroDivisionError(f"División por cero detectada en la fila {j}.")
-            x[j] = (b[j] - s) / A[j][j]
+            s1 = sum(A[j][k] * x_new[k] for k in range(j))
+            s2 = sum(A[j][k] * x[k] for k in range(j + 1, n))
+            x_new[j] = (b[j] - s1 - s2) / A[j][j]
         
         # Calcular el error como la norma infinita
-        error = np.linalg.norm(x - x_old, ord=np.inf)
+        error = np.linalg.norm(x_new - x, ord=np.inf)
         
         # Almacenar el historial
-        if iteration_history is not None:
-            iteration_history.append({
-                'iteration': i,
-                'x': [round(float(val), 6) for val in x],
-                'error': round(float(error), 6)
-            })
-        logger.info(f"Gauss-Seidel Iteración {i}: x = {x}, error = {error}")
+        iteration_history.append({
+            'iteration': i,
+            'x': [round(float(val), 6) for val in x_new],
+            'error': round(float(error), 6)
+        })
+        logger.info(f"Gauss-Seidel Iteración {i}: x = {x_new}, error = {error}")
 
         if error < tol:
             converged = True
             break
+        x = x_new.copy()
+    else:
+        converged = False
 
-    return x.tolist(), converged, i
+    logger.debug("Resultado final: x = %s, converged = %s, iterations = %d", x, converged, i)
+    return x.tolist(), converged, i, iteration_history

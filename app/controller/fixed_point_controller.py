@@ -31,7 +31,7 @@ transformations = (
 )
 # Configuración del logger
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 def controller_fixed(data):
     if not data or 'gFunction' not in data or 'initial_guess' not in data or 'iterations' not in data:
@@ -42,11 +42,16 @@ def controller_fixed(data):
     max_iter = int(data['iterations'])
 
     try:
+        logging.debug("Parsing g function")
         g = eq.parse_g_function(gFunction)
-        root, converged, iterations, iteration_history = fixed_point.fixed_point_method(g, initial_guess, max_iter)
+        
+        logging.debug("Calling fixed_point_method")
+        iteration_history = []  # Inicializa iteration_history
+        root, converged, iterations, iteration_history = fixed_point.fixed_point_method(g, initial_guess, max_iter, iteration_history)
 
+        logging.debug("Preparing data for plot")
         x_vals = [entry['x'] for entry in iteration_history]
-        g_vals = [entry['g(x)'] for entry in iteration_history]
+        g_vals = [entry['fx'] for entry in iteration_history]  # Asegúrate de usar la clave correcta
 
         trace_iteration = go.Scatter(
             x=x_vals,
@@ -73,6 +78,8 @@ def controller_fixed(data):
             'iteration_history': iteration_history,
             'plot_json': graphJSON
         }
+        logging.debug("Returning response")
         return jsonify(response)
     except Exception as e:
+        logging.error("An error occurred: %s", str(e))
         return jsonify({'error': str(e)}), 500

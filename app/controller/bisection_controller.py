@@ -44,7 +44,8 @@ def controller_bisection(data):
 
     try:
         expr, f = eq.parse_equation(equation)
-        root, converged, iterations, iteration_history = bisection.bisection_method(f, a, b, max_iter)
+        iteration_history = []  # Inicializa iteration_history
+        root, converged, iterations, iteration_history = bisection.bisection_method(f, a, b, max_iter, iteration_history)
 
         # Preparar los datos para el gráfico
         x_vals = np.linspace(a, b, 1000)
@@ -55,22 +56,22 @@ def controller_bisection(data):
             x=x_vals,
             y=y_vals,
             mode='lines',
-            name='f(x)',
+            name='Función',
             line=dict(color='blue')
         )
 
-        # Traza de las iteraciones (puntos medios)
-        trace_iterations = go.Scatter(
-            x=[entry['mid'] for entry in iteration_history],
-            y=[entry['f(mid)'] for entry in iteration_history],
-            mode='markers+text',
+        # Traza de las iteraciones
+        iter_x_vals = [entry['x'] for entry in iteration_history]
+        iter_f_vals = [entry['fx'] for entry in iteration_history]  # Usar la clave correcta 'fx'
+
+        trace_iteration = go.Scatter(
+            x=iter_x_vals,
+            y=iter_f_vals,
+            mode='markers',
             name='Iteraciones',
-            marker=dict(size=10, color='red'),
-            text=[f"Iteración {i+1}" for i in range(len(iteration_history))],
-            textposition='top center'
+            marker=dict(size=10, color='red')
         )
 
-        # Layout del gráfico
         layout = go.Layout(
             title="Convergencia del Método de Bisección",
             xaxis=dict(title='x'),
@@ -78,8 +79,7 @@ def controller_bisection(data):
             plot_bgcolor='#f0f0f0'
         )
 
-        # Generar la figura
-        fig = go.Figure(data=[trace_function, trace_iterations], layout=layout)
+        fig = go.Figure(data=[trace_function, trace_iteration], layout=layout)
         graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
         response = {
@@ -89,6 +89,8 @@ def controller_bisection(data):
             'iteration_history': iteration_history,
             'plot_json': graphJSON
         }
+        logging.debug("Returning response")
         return jsonify(response)
     except Exception as e:
+        logging.error("An error occurred: %s", str(e))
         return jsonify({'error': str(e)}), 500

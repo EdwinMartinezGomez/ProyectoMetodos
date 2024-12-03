@@ -42,4 +42,4 @@ def bisection_method(f, a, b, max_iter, iteration_history, tol=1e-6):
             a = c
             fa = fc
 
-    return c, converged, i
+    return c, converged, i, iteration_history

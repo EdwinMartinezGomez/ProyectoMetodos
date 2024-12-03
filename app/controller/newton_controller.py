@@ -44,29 +44,35 @@ def controller_newton(data):
     try:
         expr, f = eq.parse_equation(equation)
         f_prime = eq.parse_derivative_equation(equation)
-        root, converged, iterations, iteration_history = newton_raphson.newton_raphsonMethod(f, f_prime, initial_guess, max_iter)
+        iteration_history = []  # Inicializa iteration_history
+        root, converged, iterations, iteration_history = newton_raphson.newton_raphsonMethod(f, f_prime, initial_guess, max_iter, iteration_history)
 
         # Preparar los datos para el gráfico
         x_vals = np.linspace(initial_guess - 10, initial_guess + 10, 1000)
         y_vals = f(x_vals)
 
-        trace_function = go.Scatter(x=x_vals, y=y_vals, mode='lines', name='f(x)', line=dict(color='blue'))
+        trace_function = go.Scatter(
+            x=x_vals,
+            y=y_vals,
+            mode='lines',
+            name='f(x)',
+            line=dict(color='blue')
+        )
 
         # Traza de las iteraciones
         iteration_traces = [
             go.Scatter(
                 x=[entry['x'], entry['x']],
-                y=[0, entry['f(x)']],
+                y=[0, entry['fx']],
                 mode='lines+markers',
                 name=f'Iteración {i+1}',
                 line=dict(color='orange', dash='dot'),
                 marker=dict(size=8)
-            )
-            for i, entry in enumerate(iteration_history)
+            ) for i, entry in enumerate(iteration_history)
         ]
 
         layout = go.Layout(
-            title="Convergencia del Método Newton-Raphson",
+            title="Convergencia del Método de Newton-Raphson",
             xaxis=dict(title='x'),
             yaxis=dict(title='f(x)'),
             plot_bgcolor='#f0f0f0'
@@ -82,6 +88,8 @@ def controller_newton(data):
             'iteration_history': iteration_history,
             'plot_json': graphJSON
         }
+        logging.debug("Returning response")
         return jsonify(response)
     except Exception as e:
+        logging.error("An error occurred: %s", str(e))
         return jsonify({'error': str(e)}), 500

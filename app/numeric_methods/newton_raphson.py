@@ -14,13 +14,15 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-def newton_raphsonMethod(f, fprime, x0, max_iter=100, tol=1e-6):
-    iteration_history = []
+def newton_raphsonMethod(f, f_prime, x0, max_iter, iteration_history=None, tol=1e-6):
+    if iteration_history is None:
+        iteration_history = []
+
     x_prev = x0
     for i in range(1, max_iter + 1):
         try:
             fx = f(x_prev)
-            fpx = fprime(x_prev)
+            fpx = f_prime(x_prev)
             if fpx == 0:
                 raise ZeroDivisionError(f"La derivada es cero en x = {x_prev}.")
             x_next = x_prev - fx / fpx

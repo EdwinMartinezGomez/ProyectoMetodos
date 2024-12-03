@@ -44,13 +44,13 @@ def controller_secant(data):
 
     try:
         expr, f = eq.parse_equation(equation)
+        iteration_history = []  # Inicializa iteration_history
         root, converged, iterations, iteration_history = secant.secant_method(f, x0, x1, max_iter)
 
         # Preparar los datos para el gráfico
         x_vals = np.linspace(min(x0, x1) - 10, max(x0, x1) + 10, 1000)
         y_vals = f(x_vals)
 
-        # Traza de la función
         trace_function = go.Scatter(
             x=x_vals,
             y=y_vals,
@@ -59,11 +59,11 @@ def controller_secant(data):
             line=dict(color='blue')
         )
 
-        # Traza de las iteraciones (líneas secantes)
+        # Traza de las iteraciones
         secant_lines = [
             go.Scatter(
-                x=[entry['x0'], entry['x1']],
-                y=[f(entry['x0']), f(entry['x1'])],
+                x=[entry['x'], entry['x']],
+                y=[0, entry['fx']],
                 mode='lines+markers',
                 line=dict(color='orange', dash='dash'),
                 marker=dict(size=8),
@@ -84,13 +84,20 @@ def controller_secant(data):
         fig = go.Figure(data=[trace_function] + secant_lines, layout=layout)
         graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
+        if root is not None:
+            root_rounded = round(root, 6)
+        else:
+            root_rounded = None
+
         response = {
-            'root': round(root, 6),
+            'root': root_rounded,
             'converged': converged,
             'iterations': iterations,
             'iteration_history': iteration_history,
             'plot_json': graphJSON
         }
+        logging.debug("Returning response")
         return jsonify(response)
     except Exception as e:
+        logging.error("An error occurred: %s", str(e))
         return jsonify({'error': str(e)}), 500

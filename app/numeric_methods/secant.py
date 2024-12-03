@@ -1,4 +1,3 @@
-
 from flask import Blueprint, request, jsonify, render_template
 from sympy.parsing.sympy_parser import (
     parse_expr,
@@ -21,7 +20,7 @@ def secant_method(f, x0, x1, max_iter, tol=1e-6):
         try:
             fx0 = f(x0)
             fx1 = f(x1)
-            if fx1 - fx0 == 0:
+            if fx1 == fx0:
                 raise ZeroDivisionError("División por cero en el método Secante.")
             x2 = x1 - fx1 * (x1 - x0) / (fx1 - fx0)
             error = abs(x2 - x1)
@@ -35,6 +34,9 @@ def secant_method(f, x0, x1, max_iter, tol=1e-6):
             if error < tol:
                 return x2, True, i, iteration_history
             x0, x1 = x1, x2
+        except ZeroDivisionError as e:
+            logger.error(f"Error en la iteración {i} del método Secante: {str(e)}")
+            return None, False, i, iteration_history
         except Exception as e:
             logger.error(f"Error en la iteración {i} del método Secante: {str(e)}")
             return None, False, i, iteration_history

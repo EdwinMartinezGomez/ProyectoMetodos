@@ -191,28 +191,3 @@ def render_broyden_plot(exprs, variables, root):
     fig = go.Figure(data=[curve1, curve2, solution_trace, x_axis, y_axis], layout=layout)
     plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     return plot_json
-
-
-def compute_initial_jacobian(equations, variables, x0):
-    """
-    Calcula la matriz Jacobiana inicial en el punto x0.
-
-    Args:
-        equations: Lista de expresiones SymPy que representan las ecuaciones.
-        variables: Lista de símbolos SymPy que representan las variables.
-        x0: Estimación inicial (lista o array).
-
-    Returns:
-        J_initial: Matriz Jacobiana evaluada en x0.
-    """
-    J = []
-    for eq in equations:
-        row = []
-        for var in variables:
-            derivative = sp.diff(eq, var)
-            derivative_func = sp.lambdify(variables, derivative, modules=['numpy'])
-            row.append(derivative_func(*x0))
-        J.append(row)
-    return np.array(J, dtype=float)
-
-

@@ -107,15 +107,20 @@ def controller_bisection(data):
                     margin=dict(l=80, r=80, t=100, b=80)
                 )
 
-            # Definir el rango de la gráfica
-            plot_a, plot_b = a, b  # Usamos los límites del intervalo
+            # Definir el rango de la gráfica con un margen
+            margin = (b - a) * 0.1  # 10% de margen
+            plot_a, plot_b = a - margin, b + margin
+
             # Evaluar los valores de y para la gráfica
             x_vals = np.linspace(plot_a, plot_b, 1000)
-            try:
-                y_vals = [f(xi) for xi in x_vals]
-            except Exception as e:
-                logger.error(f"Error al evaluar la función para la gráfica: {str(e)}")
-                y_vals = [float('nan') for _ in x_vals]
+            y_vals = []
+            for xi in x_vals:
+                try:
+                    yi = f(xi)
+                    y_vals.append(yi)
+                except Exception as e:
+                    logger.warning(f"f({xi}) no está definido: {e}")
+                    y_vals.append(float('nan'))
 
             # Trace de la función principal
             function_trace = go.Scatter(
@@ -137,8 +142,20 @@ def controller_bisection(data):
                 hoverinfo='none'
             )
 
+            # Trace inicial para las aproximaciones (vacío)
+            approx_trace_initial = go.Scatter(
+                x=[],
+                y=[],
+                mode='markers+text',
+                name='Aproximación',
+                marker=dict(color='red', size=10),
+                text=[],
+                textposition='top center',
+                hoverinfo='none'
+            )
+
             # Inicializar data_traces con las trazas base
-            data_traces = [function_trace, trace_rastro_initial]
+            data_traces = [function_trace, trace_rastro_initial, approx_trace_initial]
 
             # Inicializar los frames y las listas de iteración
             frames = []
@@ -149,7 +166,12 @@ def controller_bisection(data):
             if iteration_history:
                 for idx, iter_data in enumerate(iteration_history):
                     current_x = iter_data['x']
-                    current_y = f(current_x)
+                    try:
+                        current_y = f(current_x)
+                    except Exception as e:
+                        logger.warning(f"f({current_x}) no está definido: {e}")
+                        current_y = float('nan')
+                    
                     iteration_x.append(current_x)
                     iteration_y.append(current_y)
 
@@ -158,7 +180,7 @@ def controller_bisection(data):
                         x=[current_x],
                         y=[current_y],
                         mode='markers+text',
-                        name=f'Iteración {idx + 1}',
+                        name='Iteración',
                         marker=dict(color='red', size=10),
                         text=[f"{idx + 1}"],
                         textposition='top center',
@@ -175,9 +197,10 @@ def controller_bisection(data):
                         hoverinfo='none'
                     )
 
-                    # Crear frame con ambos traces
+                    # Crear frame con las trazas de iteración
                     frames.append(go.Frame(
-                        data=[function_trace, trace_rastro, approx_trace],
+                        data=[trace_rastro, approx_trace],
+                        traces=[1, 2],
                         name=str(idx)
                     ))
 
@@ -212,7 +235,7 @@ def controller_bisection(data):
                                 "fromcurrent": True,
                                 "transition": {"duration": 300, "easing": "cubic-in-out"}
                             }],
-                            "label": "▶ Reproducir",
+                            "label": "▶️ Reproducir",
                             "method": "animate"
                         },
                         {
@@ -221,7 +244,7 @@ def controller_bisection(data):
                                 "mode": "immediate",
                                 "transition": {"duration": 0}
                             }],
-                            "label": "❚❚ Pausar",
+                            "label": "⏸️ Pausar",
                             "method": "animate"
                         }
                     ],
@@ -264,6 +287,7 @@ def controller_bisection(data):
                 }]
             )
 
+            # Crear la figura con los datos y frames
             fig = go.Figure(data=data_traces, layout=layout, frames=frames)
             graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
